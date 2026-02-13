@@ -2,6 +2,8 @@ const TelegramBot = require("node-telegram-bot-api");
 const express = require("express");
 const fs = require("fs");
 
+const PROVIDER_TOKEN = process.env.PAYMENT_PROVIDER_TOKEN || "";
+const PREMIUM_PRICE_UZS = Number(process.env.PREMIUM_PRICE_UZS || 20000);
 // ================== CONFIG ==================
 const token = process.env.TOKEN;
 if (!token) {
@@ -78,7 +80,8 @@ const mainMenu = {
       ["🧠 Test", "💎 Premium"],
       ["🔒 Premium bo‘lim", "💰 Narxlar"],
       ["📢 Kanal", "👤 Admin"],
-      ["⚙️ Sozlamalar", "ℹ️ Yordam"],
+      ["⚙️ Sozlamalar","💳 To‘lov"],
+       ["ℹ️ Yordam"],
     ],
     resize_keyboard: true,
   },
@@ -189,6 +192,30 @@ bot.on("message", async (msg) => {
   const text = (msg.text || "").trim();
   const userId = msg.from.id;
 
+  if (text === "💳 To‘lov") {
+    // Provider token yo'q bo'lsa — demo yo'l
+    if (!PROVIDER_TOKEN) {
+      return bot.sendMessage(
+        chatId,
+        "💳 To‘lov (DEMO)\n\n" +
+        `Premium narx: ${PREMIUM_PRICE_UZS} so‘m / oy\n\n` +
+        "Hozircha Telegram Payments ulanmagan.\n" +
+        "To‘lov qilganingizdan keyin adminga chek yuborasiz, admin premium yoqib beradi ✅",
+        mainMenu
+      );
+    }
+  
+    // Telegram Payments (provider token bor bo'lsa)
+    return bot.sendInvoice(
+      chatId,
+      "Premium obuna",
+      "Premium bo‘lim + maxsus darslar (1 oy)",
+      `premium_${chatId}_${Date.now()}`, // payload
+      PROVIDER_TOKEN,
+      "UZS",
+      [{ label: "Premium (1 oy)", amount: PREMIUM_PRICE_UZS * 100 }] // Telegram minor unit
+    );
+  }
   // komandalarni qayta ishlatmaymiz
   if (text.startsWith("/")) return;
 
@@ -399,6 +426,13 @@ bot.on("message", async (msg) => {
 
   // default
   return bot.sendMessage(chatId, "Menuni ishlating 👇", mainMenu);
+});
+bot.on("successful_payment", (msg) => {
+  const userId = String(msg.from.id);
+  db.premium[userId] = { addedAt: Date.now(), via: "telegram_payments" };
+  saveDB(db);
+
+  bot.sendMessage(msg.chat.id, "✅ To‘lov qabul qilindi! Premium yoqildi 🎉", mainMenu);
 });
 
 // ================== START SERVER + SET WEBHOOK ==================
