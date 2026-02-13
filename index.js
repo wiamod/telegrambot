@@ -43,7 +43,7 @@ let db = loadDB();
 
 // Sizni birinchi admin qilib qo‘yish (1 marta)
 // ❗ /myid qilib ID ni oling, keyin shu yerga yozing:
-const OWNER_ID = 0; // <-- masalan: 123456789
+const OWNER_ID = 7547097467; // <-- masalan: 123456789
 
 if (OWNER_ID && !db.admins[String(OWNER_ID)]) {
   db.admins[String(OWNER_ID)] = true;
