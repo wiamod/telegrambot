@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 3000;
 
 // ✅ Admin ID lar (o‘zingiznikini yozasiz)
 const ADMIN_IDS = new Set([
-  123456789 // <-- SHUNI o‘zingizning ID ga almashtiring
+  7547097467 // <-- SHUNI o‘zingizning ID ga almashtiring
 ]);
 
 // ====== DB (oddiy JSON fayl) ======
