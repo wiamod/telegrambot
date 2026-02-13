@@ -70,14 +70,15 @@ bot.on('message', (msg) => {
       "💎 Premium tez orada qo‘shiladi!\nPullik darslar + maxsus funksiyalar bo‘ladi.");
   }
   
-  else if (text === '💬 telegram kanal!') {
-    bot.sendMessage(msg.chat.id,
-      "https://t.me/+Qe8iDvDj8w01ZDky");
-  }
   else if (text === '📞 Aloqa') {
     bot.sendMessage(msg.chat.id,
       "📞 Admin: @Mirkomilallayorov01");
   }
+  else if (text === '💬 telegram kanal!') {
+    bot.sendMessage(msg.chat.id,
+      "kunlik dars");
+  }
+  
 });
 
 
