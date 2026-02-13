@@ -77,7 +77,7 @@ bot.on('message', (msg) => {
   }
   else if (text === '💬 telegram kanal!') {
     bot.sendMessage(msg.chat.id,
-      " https://t.me/+Qe8iDvDj8w01ZDky");
+      "Bizning telegram kanalimiz 💬! https://t.me/+Qe8iDvDj8w01ZDky");
   }
   
 });
