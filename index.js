@@ -42,7 +42,7 @@ const menu = {
 bot.onText(/\/start/, (msg) => {
   bot.sendMessage(
     msg.chat.id,
-    "Salom Mirkomil 👋\nKerakli bo‘limni tanlang:",
+    "Salom botimizga hush kelibsz👋\nKerakli bo‘limni tanlang:",
     menu
   );
 });
@@ -69,14 +69,14 @@ bot.on('message', (msg) => {
     bot.sendMessage(msg.chat.id,
       "💎 Premium tez orada qo‘shiladi!\nPullik darslar + maxsus funksiyalar bo‘ladi.");
   }
-
-  else if (text === '📞 Aloqa') {
-    bot.sendMessage(msg.chat.id,
-      "📞 Admin: @Mirkomilallayorov01");
-  }
+  
   else if (text === '💬 telegram kanal!') {
     bot.sendMessage(msg.chat.id,
       "https://t.me/+Qe8iDvDj8w01ZDky");
+  }
+  else if (text === '📞 Aloqa') {
+    bot.sendMessage(msg.chat.id,
+      "📞 Admin: @Mirkomilallayorov01");
   }
 });
 
