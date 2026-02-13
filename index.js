@@ -10,57 +10,109 @@ if (!token) {
 const app = express();
 app.use(express.json());
 
-// Railway public domain (Generate Domain qilgan bo‘lsang shu chiqadi)
 const PUBLIC_DOMAIN = process.env.RAILWAY_PUBLIC_DOMAIN || process.env.RAILWAY_PUBLIC_URL;
 const PORT = process.env.PORT || 3000;
 
-// === 1) Tugmalar (Menu) ===
+// ✅ Admin ID lar (o‘zingiznikini yozasiz)
+const ADMIN_IDS = new Set([
+  123456789 // <-- SHUNI o‘zingizning ID ga almashtiring
+]);
+
+// ====== DB (oddiy JSON fayl) ======
+const fs = require("fs");
+const DB_FILE = "./db.json";
+
+function loadDB() {
+  try {
+    return JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
+  } catch {
+    return { users: {}, premium: {} };
+  }
+}
+function saveDB(db) {
+  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+}
+let db = loadDB();
+
+function ensureUser(msg) {
+  const id = String(msg.from.id);
+  if (!db.users[id]) {
+    db.users[id] = {
+      id: msg.from.id,
+      username: msg.from.username || "",
+      first_name: msg.from.first_name || "",
+      joinedAt: Date.now()
+    };
+    saveDB(db);
+  }
+}
+
+function isAdmin(userId) {
+  return ADMIN_IDS.has(Number(userId));
+}
+function isPremium(userId) {
+  return !!db.premium[String(userId)];
+}
+
+// ====== Menular ======
 const mainMenu = {
   reply_markup: {
     keyboard: [
       ["📚 Darslar", "❓ Savol-javob"],
-      ["💎 Premium", "📢 Kanal"],
-      ["👤 Admin", "⚙️ Sozlamalar"],
-      ["ℹ️ Yordam"]
+      ["💎 Premium", "🔒 Premium bo‘lim"],
+      ["📢 Kanal", "👤 Admin"],
+      ["⚙️ Sozlamalar", "ℹ️ Yordam"]
     ],
     resize_keyboard: true
   }
 };
 
-// === 2) FAQ (Savol-javob) tugmalari ===
 const faqMenu = {
   reply_markup: {
     keyboard: [
       ["🤖 Bot nima?", "🧭 Qanday ishlaydi?"],
       ["💳 Premium nima?", "🆘 Muammo bo‘lsa?"],
+      ["📌 Bot 24/7 ishlaydimi?", "💬 Savol berish"],
       ["⬅️ Orqaga (Menu)"]
     ],
     resize_keyboard: true
   }
 };
 
-// FAQ javoblar
-const FAQ = {
-  "🤖 Bot nima?": "Bu bot sizga darslar, savollar va premium kontent bo‘yicha yordam beradi.",
-  "🧭 Qanday ishlaydi?": "Menu tugmalaridan tanlang. Bot avtomatik javob beradi. 24/7 Railway’da ishlaydi.",
-  "💳 Premium nima?": "Premium bo‘lsa maxsus darslar + yopiq funksiyalar ochiladi. (Hozircha demo, keyin to‘lov qo‘shamiz.)",
-  "🆘 Muammo bo‘lsa?": "Admin bo‘limiga kiring yoki menga yozing: @Mirkomilallayorov01"
+const adminMenu = {
+  reply_markup: {
+    keyboard: [
+      ["📣 Broadcast", "👥 Userlar soni"],
+      ["➕ Premium qo‘shish", "➖ Premium olib tashlash"],
+      ["📋 Premium ro‘yxat"],
+      ["⬅️ Orqaga (Menu)"]
+    ],
+    resize_keyboard: true
+  }
 };
 
-const CHANNEL_LINK = "https://t.me/your_channel"; // 🔁 kanal linkini o‘zingnikiga almashtir
+// ====== FAQ ======
+const FAQ = {
+  "🤖 Bot nima?": "Bu bot sizga darslar, savollar-javoblar va premium kontent bo‘yicha yordam beradi.",
+  "🧭 Qanday ishlaydi?": "Menu tugmalaridan tanlang — bot avtomatik javob beradi.",
+  "💳 Premium nima?": "Premium: yopiq darslar + maxsus funksiyalar. Keyin to‘lovni (Click/Payme) qo‘shamiz.",
+  "🆘 Muammo bo‘lsa?": "Admin bilan bog‘laning: @Mirkomilallayorov01",
+  "📌 Bot 24/7 ishlaydimi?": "Ha. Railway’da ishlasa — noutbuk o‘chiq bo‘lsa ham 24/7 ishlaydi.",
+  "💬 Savol berish": "Savolingizni oddiy yozing, men javob beraman (demo)."
+};
+
+const CHANNEL_LINK = "https://t.me/your_channel"; // 🔁 o‘zingiznikiga almashtiring
 const ADMIN_USERNAME = "@Mirkomilallayorov01";
 
-// Bot yaratish (webhook rejimda)
+// ====== Bot (webhook) ======
 const bot = new TelegramBot(token);
 
-// Webhook url tayyorlash
 function getWebhookUrl() {
   if (!PUBLIC_DOMAIN) return null;
-  // ⚠️ URL tokenni oshkor qilmasligi uchun maxfiy yo‘l ishlatamiz
   return `https://${PUBLIC_DOMAIN}/webhook`;
 }
 
-// === Express routes ===
+// ====== Express routes ======
 app.get("/", (req, res) => res.send("Bot ishlayapti 🚀"));
 
 app.post("/webhook", (req, res) => {
@@ -68,7 +120,6 @@ app.post("/webhook", (req, res) => {
   res.sendStatus(200);
 });
 
-// Status tekshiruv (brauzerda ochib tekshirsa bo‘ladi)
 app.get("/api/status", async (req, res) => {
   try {
     const me = await bot.getMe();
@@ -78,32 +129,88 @@ app.get("/api/status", async (req, res) => {
   }
 });
 
-// === 3) Komandalar ===
+// ====== Komandalar ======
 bot.onText(/\/start/, (msg) => {
-  bot.sendMessage(
-    msg.chat.id,
-    "Salom Mirkomil! 👋\nMenu orqali tanlang:",
-    mainMenu
-  );
+  ensureUser(msg);
+  bot.sendMessage(msg.chat.id, "Salom! 👋\nMenu orqali tanlang:", mainMenu);
 });
 
 bot.onText(/\/menu/, (msg) => {
+  ensureUser(msg);
   bot.sendMessage(msg.chat.id, "📌 Menu:", mainMenu);
 });
 
-// === 4) Tugmalarni boshqarish ===
+// Admin ID ni bilish uchun
+bot.onText(/\/myid/, (msg) => {
+  bot.sendMessage(msg.chat.id, `Sizning ID: ${msg.from.id}`);
+});
+
+// ====== Admin “holat” (broadcast mode) ======
+const adminState = {}; // { adminId: { mode: "broadcast"|"addPremium"|"removePremium" } }
+
+// ====== Xabarlar ======
 bot.on("message", async (msg) => {
+  ensureUser(msg);
+
   const chatId = msg.chat.id;
   const text = (msg.text || "").trim();
+  const userId = msg.from.id;
 
-  // /start yuqorida bor — yana qayta ishlatmaslik uchun
-  if (text === "/start" || text === "/menu") return;
+  // komandalarni qayta tutmaslik
+  if (text === "/start" || text === "/menu" || text === "/myid") return;
 
-  // Menu tugmalari
+  // ===== Admin mode ishlov berish =====
+  if (isAdmin(userId) && adminState[userId]?.mode) {
+    const mode = adminState[userId].mode;
+
+    // Broadcast matn qabul qilish
+    if (mode === "broadcast") {
+      adminState[userId] = null;
+
+      const userIds = Object.keys(db.users);
+      let sent = 0;
+
+      for (const uid of userIds) {
+        try {
+          await bot.sendMessage(uid, `📣 E'lon:\n${text}`);
+          sent++;
+        } catch {}
+      }
+      return bot.sendMessage(chatId, `✅ Broadcast yuborildi: ${sent}/${userIds.length}`, adminMenu);
+    }
+
+    // Premium qo‘shish: ID yuboradi
+    if (mode === "addPremium") {
+      adminState[userId] = null;
+      const target = text.replace(/\D/g, "");
+      if (!target) return bot.sendMessage(chatId, "❌ ID topilmadi. Masalan: 123456789", adminMenu);
+
+      db.premium[target] = { addedAt: Date.now() };
+      saveDB(db);
+
+      try { await bot.sendMessage(target, "🎉 Sizga Premium yoqildi! /start"); } catch {}
+      return bot.sendMessage(chatId, `✅ Premium qo‘shildi: ${target}`, adminMenu);
+    }
+
+    // Premium olib tashlash
+    if (mode === "removePremium") {
+      adminState[userId] = null;
+      const target = text.replace(/\D/g, "");
+      if (!target) return bot.sendMessage(chatId, "❌ ID topilmadi. Masalan: 123456789", adminMenu);
+
+      delete db.premium[target];
+      saveDB(db);
+
+      try { await bot.sendMessage(target, "ℹ️ Premium o‘chirildi."); } catch {}
+      return bot.sendMessage(chatId, `✅ Premium olib tashlandi: ${target}`, adminMenu);
+    }
+  }
+
+  // ===== Menu tugmalari =====
   if (text === "📚 Darslar") {
     return bot.sendMessage(
       chatId,
-      "📚 Darslar bo‘limi (demo)\n1) JavaScript\n2) Node.js\n3) Telegram Bot\n\nKeyin bu yerga darslarni to‘liq qo‘shamiz ✅",
+      "📚 Darslar (demo)\n1) JavaScript\n2) Node.js\n3) Telegram Bot\n\nKeyin bu bo‘limni to‘liq qilamiz ✅",
       mainMenu
     );
   }
@@ -119,43 +226,84 @@ bot.on("message", async (msg) => {
   if (text === "💎 Premium") {
     return bot.sendMessage(
       chatId,
-      "💎 Premium (demo)\n\nPremium bo‘lsa:\n✅ Maxsus darslar\n✅ Yopiq bo‘limlar\n✅ Tezkor yordam\n\nKeyingi bosqichda to‘lov (Click/Payme) qo‘shamiz 💰",
+      "💎 Premium (demo)\n\nPremium bo‘lsa:\n✅ Yopiq bo‘lim\n✅ Maxsus darslar\n✅ Tezkor yordam\n\nAdmin sizga premium yoqib beradi.",
+      mainMenu
+    );
+  }
+
+  if (text === "🔒 Premium bo‘lim") {
+    if (!isPremium(userId) && !isAdmin(userId)) {
+      return bot.sendMessage(chatId, "🔒 Bu bo‘lim faqat Premium uchun.\nPremium olish uchun adminga yozing: " + ADMIN_USERNAME, mainMenu);
+    }
+    return bot.sendMessage(
+      chatId,
+      "🔒 Premium bo‘lim (demo)\n✅ 1-dars: Premium intro\n✅ 2-dars: Botni kuchaytirish\n\nKeyin bu yerga ko‘proq dars qo‘shamiz.",
       mainMenu
     );
   }
 
   if (text === "📢 Kanal") {
-    return bot.sendMessage(chatId, `📢 Kanalimiz: ${CHANNEL_LINK}`, mainMenu);
+    return bot.sendMessage(chatId, `📢 Kanal: ${CHANNEL_LINK}`, mainMenu);
   }
 
   if (text === "👤 Admin") {
-    return bot.sendMessage(chatId, `👤 Admin: ${ADMIN_USERNAME}`, mainMenu);
+    if (!isAdmin(userId)) {
+      return bot.sendMessage(chatId, `👤 Admin: ${ADMIN_USERNAME}`, mainMenu);
+    }
+    return bot.sendMessage(chatId, "🔧 Admin panel:", adminMenu);
+  }
+
+  // ===== Admin panel tugmalari =====
+  if (isAdmin(userId) && text === "📣 Broadcast") {
+    adminState[userId] = { mode: "broadcast" };
+    return bot.sendMessage(chatId, "📣 Hamma userlarga yuboriladigan matnni yozing:", adminMenu);
+  }
+
+  if (isAdmin(userId) && text === "👥 Userlar soni") {
+    const count = Object.keys(db.users).length;
+    const pcount = Object.keys(db.premium).length;
+    return bot.sendMessage(chatId, `👥 Userlar: ${count}\n💎 Premium: ${pcount}`, adminMenu);
+  }
+
+  if (isAdmin(userId) && text === "➕ Premium qo‘shish") {
+    adminState[userId] = { mode: "addPremium" };
+    return bot.sendMessage(chatId, "➕ Premium beriladigan USER ID ni yuboring.\n(User /myid orqali ID oladi)", adminMenu);
+  }
+
+  if (isAdmin(userId) && text === "➖ Premium olib tashlash") {
+    adminState[userId] = { mode: "removePremium" };
+    return bot.sendMessage(chatId, "➖ Premium olib tashlanadigan USER ID ni yuboring:", adminMenu);
+  }
+
+  if (isAdmin(userId) && text === "📋 Premium ro‘yxat") {
+    const list = Object.keys(db.premium);
+    if (!list.length) return bot.sendMessage(chatId, "📋 Premium ro‘yxat bo‘sh.", adminMenu);
+    return bot.sendMessage(chatId, "📋 Premium userlar:\n" + list.map((x) => "• " + x).join("\n"), adminMenu);
   }
 
   if (text === "⚙️ Sozlamalar") {
-    return bot.sendMessage(chatId, "⚙️ Sozlamalar (demo)\nKeyin til/tema/notify qo‘shamiz.", mainMenu);
+    return bot.sendMessage(chatId, "⚙️ Sozlamalar (demo). Keyin til/notify qo‘shamiz.", mainMenu);
   }
 
   if (text === "ℹ️ Yordam") {
-    return bot.sendMessage(chatId, "ℹ️ Yordam:\n/menu — menuni ochish\n/start — qayta boshlash", mainMenu);
+    return bot.sendMessage(chatId, "ℹ️ Yordam:\n/start — boshlash\n/menu — menu\n/myid — ID olish", mainMenu);
   }
 
   if (text === "⬅️ Orqaga (Menu)") {
     return bot.sendMessage(chatId, "📌 Menu:", mainMenu);
   }
 
-  // Boshqa matnlar
+  // ===== Default =====
   return bot.sendMessage(chatId, "Menuni ishlating 👇", mainMenu);
 });
 
-// === 5) Server start + webhook set ===
+// ====== Server + webhook ======
 app.listen(PORT, async () => {
   console.log("✅ Server ready on port", PORT);
 
   const url = getWebhookUrl();
   if (!url) {
     console.log("⚠️ RAILWAY_PUBLIC_DOMAIN topilmadi. Networking -> Generate Domain qiling.");
-    console.log("⚠️ Hozir webhook o‘rnatilmadi.");
     return;
   }
 
