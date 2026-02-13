@@ -76,12 +76,12 @@ function isPremium(userId) {
 const mainMenu = {
   reply_markup: {
     keyboard: [
-      ["📚 Darslar", "❓ Savol-javob"],
-      ["🧠 Test", "💎 Premium"],
-      ["🔒 Premium bo‘lim", "💰 Narxlar"],
-      ["📢 Kanal", "👤 Admin"],
-      ["⚙️ Sozlamalar","💳 To‘lov"],
-       ["ℹ️ Yordam"],
+      ["📚 Darslar","🧠 Test", "❓ Savol-javob"],
+      [ "💎 Premium", "💰 Narxlar"],
+      ["🔒 Premium bo‘lim", "👤 Admin"],
+      ["📢 Kanal","💳 To‘lov"],
+      ["⚙️ Sozlamalar","ℹ️ Yordam"]
+     
     ],
     resize_keyboard: true,
   },
