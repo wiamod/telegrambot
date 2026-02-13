@@ -32,7 +32,7 @@ const menu = {
     keyboard: [
       ['📚 Darslar', '❓ Savollar'],
       ['💰 Premium', '📞 Aloqa'],
-      ['💬 telegram kanal!']
+      ['💬 telegram kanal!'],
     ],
     resize_keyboard: true
   }
