@@ -29,7 +29,7 @@ const PRICES_TEXT =
 // ✅ O'zingni admin qilish:
 // 1) botga /myid yoz -> ID chiqadi
 // 2) shu yerga yoz
-const OWNER_ID = 0; // <-- masalan: 123456789
+const OWNER_ID = 7547097467; // <-- masalan: 123456789
 
 // ================== SIMPLE DB (db.json) ==================
 const DB_FILE = "./db.json";
