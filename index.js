@@ -32,7 +32,7 @@ const menu = {
     keyboard: [
       ['📚 Darslar', '❓ Savollar'],
       ['💰 Premium', '📞 Aloqa'],
-      ['💬 telegram kanal!'],
+      ['💬 telegram kanal!']
     ],
     resize_keyboard: true
   }
@@ -77,7 +77,7 @@ bot.on('message', (msg) => {
   }
   else if (text === '💬 telegram kanal!') {
     bot.sendMessage(msg.chat.id,
-      "kunlik dars");
+      " https://t.me/+Qe8iDvDj8w01ZDky");
   }
   
 });
