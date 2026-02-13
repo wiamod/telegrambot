@@ -72,7 +72,11 @@ bot.on('message', (msg) => {
 
   else if (text === '📞 Aloqa') {
     bot.sendMessage(msg.chat.id,
-      "📞 Admin: @username");
+      "📞 Admin: @Mirkomilallayorov01");
+  }
+  else if (text === '💬 telegram kanal!') {
+    bot.sendMessage(msg.chat.id,
+      "https://t.me/+Qe8iDvDj8w01ZDky");
   }
 });
 
