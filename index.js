@@ -31,7 +31,8 @@ const menu = {
   reply_markup: {
     keyboard: [
       ['📚 Darslar', '❓ Savollar'],
-      ['💰 Premium', '📞 Aloqa']
+      ['💰 Premium', '📞 Aloqa'],
+      ['💬 telegram kanal!']
     ],
     resize_keyboard: true
   }
