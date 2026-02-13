@@ -2,7 +2,7 @@ const TelegramBot = require("node-telegram-bot-api");
 const express = require("express");
 const fs = require("fs");
 
-// ====== CONFIG ======
+// ================== CONFIG ==================
 const token = process.env.TOKEN;
 if (!token) {
   console.error("❌ TOKEN yo‘q! Railway Variables ga TOKEN qo‘ying.");
@@ -15,25 +15,29 @@ const PUBLIC_DOMAIN =
 
 const PORT = process.env.PORT || 3000;
 
-// Narxlar (xohlasang o‘zgartirasan)
+// 🔁 o'zingniki qilib qo'y
+const CHANNEL_LINK = "https://t.me/your_channel";
+const ADMIN_CONTACT = "@Mirkomilallayorov01";
+
+// Narxlar (xohlasang o'zgartir)
 const PRICES_TEXT =
   "💰 Narxlar:\n\n" +
   "💎 Premium: 20 000 so‘m / oy\n" +
   "👑 Admin: 100 000 so‘m / oy\n\n" +
   "To‘lovdan keyin sizga Premium yoki Admin yoqib beriladi.";
 
-// Link/username (o‘zgartir)
-const CHANNEL_LINK = "https://t.me/your_channel";
-const ADMIN_CONTACT = "@Mirkomilallayorov01";
+// ✅ O'zingni admin qilish:
+// 1) botga /myid yoz -> ID chiqadi
+// 2) shu yerga yoz
+const OWNER_ID = 0; // <-- masalan: 123456789
 
-// ====== SIMPLE DB (db.json) ======
+// ================== SIMPLE DB (db.json) ==================
 const DB_FILE = "./db.json";
-
 function loadDB() {
   try {
     return JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
   } catch {
-    return { users: {}, premium: {}, admins: {} };
+    return { users: {}, premium: {}, admins: {}, quiz: {} };
   }
 }
 function saveDB(db) {
@@ -41,16 +45,12 @@ function saveDB(db) {
 }
 let db = loadDB();
 
-// Sizni birinchi admin qilib qo‘yish (1 marta)
-// ❗ /myid qilib ID ni oling, keyin shu yerga yozing:
-const OWNER_ID = 7547097467; // <-- masalan: 123456789
-
 if (OWNER_ID && !db.admins[String(OWNER_ID)]) {
   db.admins[String(OWNER_ID)] = true;
   saveDB(db);
 }
 
-// ====== HELPERS ======
+// ================== HELPERS ==================
 function ensureUser(msg) {
   const id = String(msg.from.id);
   if (!db.users[id]) {
@@ -63,24 +63,22 @@ function ensureUser(msg) {
     saveDB(db);
   }
 }
-
 function isAdmin(userId) {
   return !!db.admins[String(userId)];
 }
-
 function isPremium(userId) {
   return !!db.premium[String(userId)];
 }
 
-// ====== MENUS ======
+// ================== MENUS ==================
 const mainMenu = {
   reply_markup: {
     keyboard: [
       ["📚 Darslar", "❓ Savol-javob"],
-      ["💎 Premium", "🔒 Premium bo‘lim"],
-      ["💰 Narxlar", "📢 Kanal"],
-      ["👤 Admin", "⚙️ Sozlamalar"],
-      ["ℹ️ Yordam"],
+      ["🧠 Test", "💎 Premium"],
+      ["🔒 Premium bo‘lim", "💰 Narxlar"],
+      ["📢 Kanal", "👤 Admin"],
+      ["⚙️ Sozlamalar", "ℹ️ Yordam"],
     ],
     resize_keyboard: true,
   },
@@ -111,25 +109,40 @@ const adminMenu = {
   },
 };
 
-// ====== FAQ ANSWERS ======
+// ================== FAQ ==================
 const FAQ = {
-  "🤖 Bot nima?": "Bu bot sizga darslar, savol-javob va premium kontent bo‘yicha yordam beradi.",
+  "🤖 Bot nima?": "Bu bot sizga darslar, savol-javob, test va premium kontent bo‘yicha yordam beradi.",
   "🧭 Qanday ishlaydi?": "Menu tugmalaridan tanlang — bot avtomatik javob beradi.",
-  "💳 Premium nima?": "Premium: yopiq darslar + maxsus funksiyalar. Keyin to‘lov (Click/Payme) qo‘shamiz.",
-  "🆘 Muammo bo‘lsa?": `Admin bilan bog‘laning: ${ADMIN_CONTACT}`,
+  "💳 Premium nima?": "Premium: yopiq darslar + maxsus funksiyalar. Keyin to‘lovni haqiqiy ulaymiz.",
+  "🆘 Muammo bo‘lsa?": `Admin: ${ADMIN_CONTACT}`,
   "📌 Bot 24/7 ishlaydimi?": "Ha. Railway’da tursa — noutbuk o‘chiq bo‘lsa ham 24/7 ishlaydi.",
-  "💬 Savol berish": "Savolingizni oddiy yozing (demo). Masalan: 'JavaScript nima?'",
+  "💬 Savol berish": "Savolingizni oddiy yozing (demo). Masalan: 'Node.js nima?'",
 };
 
-// ====== BOT (WEBHOOK) ======
+// ================== QUIZ ==================
+const QUIZ = [
+  { q: "JavaScript nima?", a: "til" },
+  { q: "Node.js nima?", a: "runtime" },
+  { q: "Telegram bot nima bilan yoziladi? (bizda)", a: "node" },
+];
+
+// quiz state: db.quiz[userId] = { index, score, active }
+function startQuiz(userId) {
+  db.quiz[String(userId)] = { index: 0, score: 0, active: true };
+  saveDB(db);
+}
+function stopQuiz(userId) {
+  delete db.quiz[String(userId)];
+  saveDB(db);
+}
+
+// ================== BOT + WEBHOOK ==================
 const bot = new TelegramBot(token);
 
-// ====== EXPRESS ======
 const app = express();
 app.use(express.json());
 
 app.get("/", (req, res) => res.send("Bot ishlayapti 🚀"));
-
 app.get("/api/status", async (req, res) => {
   try {
     const me = await bot.getMe();
@@ -138,13 +151,12 @@ app.get("/api/status", async (req, res) => {
     res.status(500).json({ ok: false, error: String(e) });
   }
 });
-
 app.post("/webhook", (req, res) => {
   bot.processUpdate(req.body);
   res.sendStatus(200);
 });
 
-// ====== COMMANDS ======
+// ================== COMMANDS ==================
 bot.onText(/\/start/, (msg) => {
   ensureUser(msg);
   bot.sendMessage(msg.chat.id, "Salom! 👋\nMenu orqali tanlang:", mainMenu);
@@ -165,10 +177,11 @@ bot.onText(/\/resetmenu/, (msg) => {
   bot.sendMessage(msg.chat.id, "Menu reset ✅", { reply_markup: { remove_keyboard: true } });
 });
 
-// ====== ADMIN STATE ======
-const adminState = {}; // adminState[adminId] = { mode: "broadcast" | "addPremium" | "removePremium" | "addAdmin" | "removeAdmin" }
+// ================== ADMIN STATE ==================
+const adminState = {}; 
+// adminState[adminId] = { mode: "broadcast" | "addPremium" | "removePremium" | "addAdmin" | "removeAdmin" }
 
-// ====== MESSAGE HANDLER ======
+// ================== MESSAGE HANDLER ==================
 bot.on("message", async (msg) => {
   ensureUser(msg);
 
@@ -176,10 +189,10 @@ bot.on("message", async (msg) => {
   const text = (msg.text || "").trim();
   const userId = msg.from.id;
 
-  // komandalarni bu yerda ishlatmaymiz
+  // komandalarni qayta ishlatmaymiz
   if (text.startsWith("/")) return;
 
-  // ===== ADMIN MODE INPUT =====
+  // ====== ADMIN MODE INPUT ======
   if (isAdmin(userId) && adminState[userId]?.mode) {
     const mode = adminState[userId].mode;
 
@@ -187,7 +200,6 @@ bot.on("message", async (msg) => {
       adminState[userId] = null;
       const userIds = Object.keys(db.users);
       let sent = 0;
-
       for (const uid of userIds) {
         try {
           await bot.sendMessage(uid, `📣 E'lon:\n${text}`);
@@ -204,7 +216,6 @@ bot.on("message", async (msg) => {
 
       db.premium[target] = { addedAt: Date.now() };
       saveDB(db);
-
       try { await bot.sendMessage(target, "🎉 Sizga Premium yoqildi! /start"); } catch {}
       return bot.sendMessage(chatId, `✅ Premium qo‘shildi: ${target}`, adminMenu);
     }
@@ -216,7 +227,6 @@ bot.on("message", async (msg) => {
 
       delete db.premium[target];
       saveDB(db);
-
       try { await bot.sendMessage(target, "ℹ️ Premium o‘chirildi."); } catch {}
       return bot.sendMessage(chatId, `✅ Premium olib tashlandi: ${target}`, adminMenu);
     }
@@ -228,7 +238,6 @@ bot.on("message", async (msg) => {
 
       db.admins[target] = true;
       saveDB(db);
-
       try { await bot.sendMessage(target, "🎉 Siz Admin bo‘ldingiz! /start"); } catch {}
       return bot.sendMessage(chatId, `✅ Admin qo‘shildi: ${target}`, adminMenu);
     }
@@ -240,17 +249,34 @@ bot.on("message", async (msg) => {
 
       delete db.admins[target];
       saveDB(db);
-
       try { await bot.sendMessage(target, "ℹ️ Adminlik olib tashlandi."); } catch {}
       return bot.sendMessage(chatId, `✅ Admin olib tashlandi: ${target}`, adminMenu);
     }
   }
 
-  // ===== MAIN MENU BUTTONS =====
+  // ====== QUIZ INPUT (agar quiz active bo'lsa) ======
+  const qstate = db.quiz[String(userId)];
+  if (qstate?.active) {
+    const current = QUIZ[qstate.index];
+    const ans = (text || "").toLowerCase();
+    if (ans.includes(current.a)) qstate.score++;
+
+    qstate.index++;
+    if (qstate.index >= QUIZ.length) {
+      const score = qstate.score;
+      stopQuiz(userId);
+      return bot.sendMessage(chatId, `✅ Test tugadi!\nBall: ${score}/${QUIZ.length}`, mainMenu);
+    } else {
+      saveDB(db);
+      return bot.sendMessage(chatId, `Keyingi savol:\n${QUIZ[qstate.index].q}`, mainMenu);
+    }
+  }
+
+  // ====== MAIN MENU BUTTONS ======
   if (text === "📚 Darslar") {
     return bot.sendMessage(
       chatId,
-      "📚 Darslar (demo)\n1) JavaScript\n2) Node.js\n3) Telegram Bot\n\nKeyin to‘liq darslar qo‘shamiz ✅",
+      "📚 Darslar (demo)\n1) JavaScript\n2) Node.js\n3) Telegram Bot\n\nKeyin bu bo‘limni to‘liq qilamiz ✅",
       mainMenu
     );
   }
@@ -261,6 +287,11 @@ bot.on("message", async (msg) => {
 
   if (FAQ[text]) {
     return bot.sendMessage(chatId, "✅ " + FAQ[text], faqMenu);
+  }
+
+  if (text === "🧠 Test") {
+    startQuiz(userId);
+    return bot.sendMessage(chatId, `🧠 Test boshlandi!\nSavol:\n${QUIZ[0].q}`, mainMenu);
   }
 
   if (text === "💎 Premium") {
@@ -306,14 +337,18 @@ bot.on("message", async (msg) => {
   }
 
   if (text === "ℹ️ Yordam") {
-    return bot.sendMessage(chatId, "ℹ️ Yordam:\n/start — boshlash\n/menu — menu\n/myid — ID olish\n/resetmenu — menu reset", mainMenu);
+    return bot.sendMessage(
+      chatId,
+      "ℹ️ Yordam:\n/start — boshlash\n/menu — menu\n/myid — ID olish\n/resetmenu — menu reset\n\nTest: 🧠 Test tugmasi",
+      mainMenu
+    );
   }
 
   if (text === "⬅️ Orqaga (Menu)") {
     return bot.sendMessage(chatId, "📌 Menu:", mainMenu);
   }
 
-  // ===== ADMIN PANEL BUTTONS =====
+  // ====== ADMIN PANEL BUTTONS ======
   if (isAdmin(userId) && text === "📣 Broadcast") {
     adminState[userId] = { mode: "broadcast" };
     return bot.sendMessage(chatId, "📣 Hamma userlarga yuboriladigan matnni yozing:", adminMenu);
@@ -358,16 +393,15 @@ bot.on("message", async (msg) => {
     return bot.sendMessage(chatId, "📋 Adminlar:\n" + list.map((x) => "• " + x).join("\n"), adminMenu);
   }
 
-  // ===== DEFAULT Q/A DEMO =====
-  const lower = text.toLowerCase();
-  if (lower.includes("javascript") || lower === "js nima") {
-    return bot.sendMessage(chatId, "JavaScript — web uchun dasturlash tili ✅", mainMenu);
+  if (text === "⬅️ Orqaga (Menu)") {
+    return bot.sendMessage(chatId, "📌 Menu:", mainMenu);
   }
 
+  // default
   return bot.sendMessage(chatId, "Menuni ishlating 👇", mainMenu);
 });
 
-// ====== START SERVER + SET WEBHOOK ======
+// ================== START SERVER + SET WEBHOOK ==================
 app.listen(PORT, async () => {
   console.log("✅ Server ready on port", PORT);
 
