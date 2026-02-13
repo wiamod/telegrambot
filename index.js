@@ -18,7 +18,7 @@ const PUBLIC_DOMAIN =
 const PORT = process.env.PORT || 3000;
 
 // 🔁 o'zingniki qilib qo'y
-const CHANNEL_LINK = "https://t.me/your_channel";
+const CHANNEL_LINK = "https://t.me/+Qe8iDvDj8w01ZDky";
 const ADMIN_CONTACT = "@Mirkomilallayorov01";
 
 // Narxlar (xohlasang o'zgartir)
