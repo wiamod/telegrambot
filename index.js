@@ -107,6 +107,9 @@ const QUIZ = [
   { q: "2 + 2 = ?", options: ["3", "4", "5"], a: "4" },
   { q: "O‘zbekiston poytaxti?", options: ["Toshkent", "Samarqand", "Buxoro"], a: "Toshkent" },
   { q: "Node.js nima?", options: ["Runtime", "Brauzer", "O‘yin"], a: "Runtime" },
+  { q: "Amir Temurning nechi mingta askari bolgan ?", options: ["200 000", "400 000", "250 000"], a: "400 000" },
+  { q: "Sirdaryo viloyatining paytaxti ?", options: ["Guliston", "qirq qiz", "Qarapchi"], a: "Guliston" },
+  { q: "Bolalarda nechta suyaklar mavjud?", options: ["265", "306", "288"], a: "306" },
 ];
 
 const quizState = {}; // userId -> { index, score, active }
