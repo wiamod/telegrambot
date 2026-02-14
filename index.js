@@ -73,9 +73,7 @@ function ensureUser(msg) {
     saveDB(db);
   }
 }
-function isAdmin(userId) {
-  return !!db.admins[String(userId)];
-}
+
 function isPremium(userId) {
   const p = db.premium[String(userId)];
   if (!p) return false;
