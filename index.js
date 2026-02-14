@@ -6,7 +6,7 @@ const fs = require("fs");
 const TOKEN = process.env.TOKEN;
 if (!TOKEN) throw new Error("TOKEN topilmadi. Railway Variables ga TOKEN qo‘ying.");
 
-const ADMINS = (process.env.ADMINS || "7547097467,123456789")
+const ADMINS = (process.env.ADMINS || 7547097467)
   .split(",")
   .map(x => Number(x.trim()));
 const CHANNEL_LINK = process.env.CHANNEL_LINK || "https://t.me/your_channel";
