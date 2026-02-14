@@ -135,8 +135,10 @@ const adminMenu = {
       ["➕ Premium qo‘shish", "➖ Premium olib tashlash"],
       ["➕ Admin qo‘shish", "➖ Admin olib tashlash"],
       ["➕ FAQ qo‘shish", "➖ FAQ o‘chirish"],
+      ["➕ Quiz qo‘shish", "➖ Quiz o‘chirish"],
       ["📋 Premium ro‘yxat", "📋 Admin ro‘yxat"],
-      ["📋 FAQ ro‘yxat", "⬅️ Orqaga (Menu)"],
+      ["📋 FAQ ro‘yxat", "📋Quiz ro'yxat"],
+      ["⬅️ Orqaga (Menu)"],
     ],
     resize_keyboard: true,
   },
@@ -299,7 +301,21 @@ bot.on("message", async (msg) => {
       }
       return ask(chatId, "❌ Topilmadi. Savolni aynan ro‘yxatdagidek yozing:", adminMenu);
     }
+      // Add Quiz: step1 question, step2 answer
+      if (st.mode === "addQuiz") {
+        if (st.step === 1) {
+          st.temp = { q: text };
+          st.step = 2;
+          return ask(chatId, "Endi javobini yozing:", adminMenu);
+        } else {
+          db.quizState[st.temp.q] = text;
+          saveDB(db);
+          adminState[userId] = null;
+          return ask(chatId, `✅ Quiz qo‘shildi:\nQ: ${st.temp.q}\nA: ${text}`, adminMenu);
+        }
+      }
   }
+
 
   // -------- QUIZ MODE (javob kutish) --------
   if (quizState[userId]?.active) {
