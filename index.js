@@ -6,9 +6,19 @@ const fs = require("fs");
 const TOKEN = process.env.TOKEN;
 if (!TOKEN) throw new Error("TOKEN topilmadi. Railway Variables ga TOKEN qo‘ying.");
 
-const OWNER_ID = Number(process.env.OWNER_ID ||  7547097467); // /myid bilan olasan
+const ADMINS = (process.env.ADMINS || "7547097467,123456789")
+  .split(",")
+  .map(x => Number(x.trim()));
 const CHANNEL_LINK = process.env.CHANNEL_LINK || "https://t.me/your_channel";
 const ADMIN_CONTACT = "@Mirkomilallayorov01";
+
+
+const PREMIUM_PRICE = 20000; // so'm
+const PREMIUM_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 kun
+
+const isAdmin = (msg) => ADMINS.includes(msg.from.id);
+if (!isAdmin(msg)) return bot.sendMessage(msg.chat.id, "Siz admin emassiz!");
+
 const PRICES_TEXT =
   "💰 Narxlar:\n\n" +
   "💎 Premium: 20 000 so‘m / oy\n" +
@@ -67,9 +77,16 @@ function isAdmin(userId) {
   return !!db.admins[String(userId)];
 }
 function isPremium(userId) {
-  return !!db.premium[String(userId)];
-}
+  const p = db.premium[String(userId)];
+  if (!p) return false;
 
+  if (Date.now() > p.expireAt) {
+    delete db.premium[String(userId)];
+    saveDB(db);
+    return false;
+  }
+  return true;
+}
 // ================== SCHEDULE DATA (1 haftalik) ==================
 const SCHEDULES = {
   "8-A": {
@@ -212,6 +229,7 @@ function takeId(text) {
 }
 
 // ================== MAIN HANDLER ==================
+
 bot.on("message", async (msg) => {
   ensureUser(msg);
   ensureOwnerAdmin();
@@ -500,8 +518,31 @@ bot.on("message", async (msg) => {
     const list = db.quiz.map((x, i) => `${i + 1}) ${x.q}`).join("\n");
     return ask(chatId, "📋 Quiz:\n" + (list || "Hozircha quiz yo‘q"), adminMenu);
   }
+  if (text === "💎 Premium") {
 
+    if (isPremium(userId)) {
+      const expire = new Date(db.premium[String(userId)].expireAt)
+        .toLocaleDateString();
+  
+      return ask(chatId,
+        `💎 Siz Premium usersiz\n\n⏳ Tugash sanasi: ${expire}`,
+        mainMenu
+      );
+    }
+  
+    return ask(chatId,
+      `💎 Premium obuna\n\n` +
+      `Narx: ${PREMIUM_PRICE.toLocaleString()} so‘m / oy\n\n` +
+      `Premium imkoniyatlari:\n` +
+      `✅ Ko‘proq testlar\n` +
+      `✅ Premium bo‘lim\n` +
+      `✅ Maxsus kontent\n\n` +
+      `To‘lov qilish uchun admin: ${ADMIN_CONTACT}`,
+      mainMenu
+    );
+  }
   return ask(chatId, "Menuni ishlating 👇", mainMenu);
+  
 });
 
 // ================== START SERVER + SET WEBHOOK ==================
@@ -521,3 +562,20 @@ app.listen(PORT, async () => {
     console.log("❌ Webhook set error:", e);
   }
 });
+setInterval(() => {
+  let changed = false;
+
+  for (const userId in db.premium) {
+    if (Date.now() > db.premium[userId].expireAt) {
+      delete db.premium[userId];
+      changed = true;
+
+      bot.sendMessage(userId,
+        "ℹ️ Premium obunangiz tugadi.\nYangilash uchun admin bilan bog‘laning."
+      ).catch(()=>{});
+    }
+  }
+
+  if (changed) saveDB(db);
+
+}, 60 * 60 * 1000); // har 1 soatda tekshiradi
