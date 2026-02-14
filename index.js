@@ -6,7 +6,7 @@ const fs = require("fs");
 const TOKEN = process.env.TOKEN;
 if (!TOKEN) throw new Error("TOKEN topilmadi. Railway Variables ga TOKEN qo‘ying.");
 
-const OWNER_ID = Number(process.env.OWNER_ID || 0); // /myid bilan olasan
+const OWNER_ID = Number(process.env.OWNER_ID || 7547097467); // /myid bilan olasan
 const CHANNEL_LINK = process.env.CHANNEL_LINK || "https://t.me/your_channel";
 const ADMIN_CONTACT = "@Mirkomilallayorov01";
 const PRICES_TEXT =
@@ -72,13 +72,13 @@ function isPremium(userId) {
 // ================== SCHEDULE DATA (1 haftalik) ==================
 // ✅ Shu yerga sinflaringni qo‘shib ko‘paytirasan
 const SCHEDULES = {
-  "5-A": {
-    "Dushanba": ["Matematika", "Ona tili", "Ingliz tili", "Tarix"],
-    "Seshanba": ["Fizika", "Matematika", "Ingliz tili", "Musiqa"],
-    "Chorshanba": ["Biologiya", "Ona tili", "Informatika", "Jismoniy tarbiya"],
-    "Payshanba": ["Kimyo", "Matematika", "Geografiya", "Adabiyot"],
-    "Juma": ["Informatika", "Fizika", "Tarbiya soati", "Sport"],
-    "Shanba": ["Test kuni 🧠"],
+  "8-A": {
+    "Dushanba": ["Kelajak soati", "Ona tili","Algebra", "Ingliz tili", "Rus tili"],
+    "Seshanba": ["Geometriya","Kimyo", "Fizika", "Davlat huquq asoslari", "O'zbekiston tarixi"],
+    "Chorshanba": ["Adabiyot", "Jaxon tarixi", "Chizmachilik", "Ona tili","ingiliz tili","Texnalogiya"],
+    "Payshanba": ["Fizika", "Jismoniy tarbiya", "Ona tili ", "Bialogiya","Ingiliz tili"],
+    "Juma": ["Adabiyot", "Geografiya", "Algebra", "Bialogiya", "Informatika", "O'zbekiston tarixi"],
+    "Shanba": ["Algebra","Geografiya","Kimyo","Rus tili" , "Tarbiya" ,"Geometriya"],
   },
   "6-A": {
     "Dushanba": ["Matematika", "Ingliz tili", "Fizika", "Adabiyot"],
