@@ -6,29 +6,31 @@ const fs = require("fs");
 const TOKEN = process.env.TOKEN;
 if (!TOKEN) throw new Error("TOKEN topilmadi. Railway Variables ga TOKEN qo‘ying.");
 
-const ADMINS = (process.env.ADMINS || 7547097467)
+const ADMINS_ENV = (process.env.ADMINS || "7547097467")
   .split(",")
-  .map(x => Number(x.trim()));
+  .map((x) => Number(x.trim()))
+  .filter((n) => Number.isFinite(n));
+
+const OWNER_ID = Number(process.env.OWNER_ID || ADMINS_ENV[0] || 7547097467);
+
 const CHANNEL_LINK = process.env.CHANNEL_LINK || "https://t.me/your_channel";
-const ADMIN_CONTACT = "@Mirkomilallayorov01";
+const ADMIN_CONTACT = process.env.ADMIN_CONTACT || "@Mirkomilallayorov01";
 
-
-const PREMIUM_PRICE = 20000; // so'm
+const PREMIUM_PRICE = Number(process.env.PREMIUM_PRICE || 20000); // so'm
 const PREMIUM_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 kun
-
-const isAdmin = (msg) => ADMINS.includes(msg.from.id);
-if (!isAdmin(msg)) return bot.sendMessage(msg.chat.id, "Siz admin emassiz!");
 
 const PRICES_TEXT =
   "💰 Narxlar:\n\n" +
-  "💎 Premium: 20 000 so‘m / oy\n" +
+  `💎 Premium: ${PREMIUM_PRICE.toLocaleString()} so‘m / oy\n` +
   "👑 Admin: 100 000 so‘m / oy\n\n" +
   "Hozircha to‘lov yo‘q — keyin oxirida ulaymiz.";
 
-// Railway domen
+// Railway domen (PUBLIC)
 const PUBLIC_DOMAIN =
   process.env.RAILWAY_PUBLIC_DOMAIN ||
-  (process.env.RAILWAY_STATIC_URL ? process.env.RAILWAY_STATIC_URL.replace("https://", "") : null);
+  (process.env.RAILWAY_STATIC_URL
+    ? process.env.RAILWAY_STATIC_URL.replace("https://", "")
+    : null);
 
 const PORT = process.env.PORT || 3000;
 
@@ -40,19 +42,22 @@ function loadDB() {
     return JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
   } catch {
     return {
-      users: {},      // userId -> info
-      premium: {},    // userId -> {addedAt}
-      admins: {},     // userId -> true
-      faq: {},        // question -> answer
-      quiz: []        // [{q, options:[...], a}]
+      users: {},   // userId -> info
+      premium: {}, // userId -> {addedAt, expireAt}
+      admins: {},  // userId -> true
+      faq: {},     // question -> answer
+      quiz: [],    // [{q, options:[...], a}]
     };
   }
 }
+
 function saveDB(db) {
   fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
 }
+
 let db = loadDB();
 
+// Owner doim admin bo‘lsin
 function ensureOwnerAdmin() {
   if (OWNER_ID && !db.admins[String(OWNER_ID)]) {
     db.admins[String(OWNER_ID)] = true;
@@ -60,6 +65,19 @@ function ensureOwnerAdmin() {
   }
 }
 ensureOwnerAdmin();
+
+// ENV’dagi ADMINS ham admin bo‘lib tursin
+function ensureEnvAdmins() {
+  let changed = false;
+  for (const id of ADMINS_ENV) {
+    if (id && !db.admins[String(id)]) {
+      db.admins[String(id)] = true;
+      changed = true;
+    }
+  }
+  if (changed) saveDB(db);
+}
+ensureEnvAdmins();
 
 function ensureUser(msg) {
   const id = String(msg.from.id);
@@ -74,34 +92,39 @@ function ensureUser(msg) {
   }
 }
 
-function isPremium(userId) {
+function isAdminUser(userId) {
+  return !!db.admins[String(userId)];
+}
+
+function isPremiumUser(userId) {
   const p = db.premium[String(userId)];
   if (!p) return false;
 
-  if (Date.now() > p.expireAt) {
+  if (p.expireAt && Date.now() > p.expireAt) {
     delete db.premium[String(userId)];
     saveDB(db);
     return false;
   }
   return true;
 }
+
 // ================== SCHEDULE DATA (1 haftalik) ==================
 const SCHEDULES = {
   "8-A": {
-    "Dushanba": ["Kelajak soati", "Ona tili","Algebra" , "Ingliz tili", "Rus tili"],
-    "Seshanba": ["Geometriya", "Kimyo", "Fizika", "Davlat huquq asoslari", "Jismoniy tarbiya", "O'zbekiston tarixi"],
-    "Chorshanba": ["Adabiyot ", "Jaxon tarixi", "Chizmachilik", "Ona tili" , "Ingiliz tili" , "Texnalogiya"],
-    "Payshanba": ["Fizika", "Jismoniy tarbiya", "Ona tili", "Bialogiya" , "Ingiliz tili" ],
-    "Juma": ["Adabiyot", "Geografiya", "Algebra", "Bialogiya", "Informatika" , "O'zbekiston tarixi"], 
-    "Shanba": ["Algebra " , "Geografiya" ,"Kimyo" , "Rus tili","Tarbiya","Geometriya"],
+    Dushanba: ["Kelajak soati", "Ona tili", "Algebra", "Ingliz tili", "Rus tili"],
+    Seshanba: ["Geometriya", "Kimyo", "Fizika", "Davlat huquq asoslari", "Jismoniy tarbiya", "O'zbekiston tarixi"],
+    Chorshanba: ["Adabiyot", "Jaxon tarixi", "Chizmachilik", "Ona tili", "Ingliz tili", "Texnalogiya"],
+    Payshanba: ["Fizika", "Jismoniy tarbiya", "Ona tili", "Bialogiya", "Ingliz tili"],
+    Juma: ["Adabiyot", "Geografiya", "Algebra", "Bialogiya", "Informatika", "O'zbekiston tarixi"],
+    Shanba: ["Algebra", "Geografiya", "Kimyo", "Rus tili", "Tarbiya", "Geometriya"],
   },
   "6-A": {
-    "Dushanba": ["Matematika", "Ingliz tili", "Fizika", "Adabiyot"],
-    "Seshanba": ["Ona tili", "Biologiya", "Informatika", "Tarix"],
-    "Chorshanba": ["Kimyo", "Matematika", "Geografiya", "Sport"],
-    "Payshanba": ["Fizika", "Ingliz tili", "Adabiyot", "Musiqa"],
-    "Juma": ["Informatika", "Matematika", "Tarbiya soati", "Rasm"],
-    "Shanba": ["Test kuni 🧠"],
+    Dushanba: ["Matematika", "Ingliz tili", "Fizika", "Adabiyot"],
+    Seshanba: ["Ona tili", "Biologiya", "Informatika", "Tarix"],
+    Chorshanba: ["Kimyo", "Matematika", "Geografiya", "Sport"],
+    Payshanba: ["Fizika", "Ingliz tili", "Adabiyot", "Musiqa"],
+    Juma: ["Informatika", "Matematika", "Tarbiya soati", "Rasm"],
+    Shanba: ["Test kuni 🧠"],
   },
 };
 
@@ -122,6 +145,7 @@ if (!Array.isArray(db.quiz) || db.quiz.length === 0) {
     { q: "Node.js nima?", options: ["Runtime", "Brauzer", "O‘yin"], a: "Runtime" },
   ];
 }
+
 saveDB(db);
 
 // ================== QUIZ STATE ==================
@@ -170,12 +194,13 @@ function ask(chatId, text, menu) {
 }
 
 // ================== BOT + WEBHOOK ==================
-const bot = new TelegramBot(TOKEN);
+const bot = new TelegramBot(TOKEN); // webhook rejimida ishlatamiz
 
 const app = express();
 app.use(express.json());
 
 app.get("/", (req, res) => res.send("Bot ishlayapti 🚀"));
+
 app.get("/api/status", async (req, res) => {
   try {
     const me = await bot.getMe();
@@ -194,6 +219,7 @@ app.post("/webhook", (req, res) => {
 bot.onText(/\/start/, (msg) => {
   ensureUser(msg);
   ensureOwnerAdmin();
+  ensureEnvAdmins();
   ask(msg.chat.id, "Salom, Mirkomil StartApp Bot! 👋\nMenu orqali tanlang:", mainMenu);
 });
 
@@ -223,14 +249,14 @@ const adminState = {};
 // delQuiz (index)
 
 function takeId(text) {
-  return text.replace(/\D/g, "");
+  return (text || "").replace(/\D/g, "");
 }
 
 // ================== MAIN HANDLER ==================
-
 bot.on("message", async (msg) => {
   ensureUser(msg);
   ensureOwnerAdmin();
+  ensureEnvAdmins();
 
   const chatId = msg.chat.id;
   const userId = msg.from.id;
@@ -239,7 +265,7 @@ bot.on("message", async (msg) => {
   if (text.startsWith("/")) return;
 
   // -------- ADMIN MODES --------
-  if (isAdmin(userId) && adminState[userId]?.mode) {
+  if (isAdminUser(userId) && adminState[userId]?.mode) {
     const st = adminState[userId];
 
     // Broadcast
@@ -262,7 +288,10 @@ bot.on("message", async (msg) => {
       if (!target) return ask(chatId, "❌ ID topilmadi. Masalan: 123456789", adminMenu);
 
       if (st.mode === "addPremium") {
-        db.premium[target] = { addedAt: Date.now() };
+        db.premium[target] = {
+          addedAt: Date.now(),
+          expireAt: Date.now() + PREMIUM_DURATION,
+        };
         saveDB(db);
         try { await bot.sendMessage(target, "🎉 Sizga Premium yoqildi! /start"); } catch {}
         adminState[userId] = null;
@@ -327,7 +356,7 @@ bot.on("message", async (msg) => {
         return ask(chatId, "Variantlarni vergul bilan yozing.\nMasalan: A,B,C", adminMenu);
       }
       if (st.step === 2) {
-        const options = text.split(",").map(s => s.trim()).filter(Boolean);
+        const options = text.split(",").map((s) => s.trim()).filter(Boolean);
         if (options.length < 2) return ask(chatId, "❌ Kamida 2 ta variant kerak. Masalan: 3,4,5", adminMenu);
         st.temp.options = options;
         st.step = 3;
@@ -417,19 +446,39 @@ bot.on("message", async (msg) => {
 
   if (text === "📚 Kurslar") return ask(chatId, "📚 Kurslar (demo):\n1) Telegram bot\n2) Jadval bot\n3) Quiz bot", mainMenu);
 
-  if (text === "💎 Premium") return ask(chatId, "💎 Premium (info): keyin kengaytiramiz ✅", mainMenu);
-
-  if (text === "🔒 Premium bo‘lim") {
-    if (!isPremium(userId) && !isAdmin(userId)) return ask(chatId, `🔒 Bu bo‘lim faqat Premium uchun.\nAdmin: ${ADMIN_CONTACT}`, mainMenu);
-    return ask(chatId, "🔒 Premium bo‘lim (demo): maxsus testlar, darslar ✅", mainMenu);
-  }
-
   if (text === "💰 Narxlar") return ask(chatId, PRICES_TEXT, mainMenu);
 
   if (text === "📢 Kanal") return ask(chatId, `📢 Kanal: ${CHANNEL_LINK}`, mainMenu);
 
+  if (text === "💎 Premium") {
+    if (isPremiumUser(userId)) {
+      const exp = db.premium[String(userId)]?.expireAt;
+      const expireStr = exp ? new Date(exp).toLocaleDateString() : "Noma’lum";
+      return ask(chatId, `💎 Siz Premium usersiz ✅\n⏳ Tugash sanasi: ${expireStr}`, mainMenu);
+    }
+
+    return ask(
+      chatId,
+      `💎 Premium obuna\n\n` +
+        `Narx: ${PREMIUM_PRICE.toLocaleString()} so‘m / oy\n\n` +
+        `Premium imkoniyatlari:\n` +
+        `✅ Ko‘proq testlar\n` +
+        `✅ Premium bo‘lim\n` +
+        `✅ Maxsus kontent\n\n` +
+        `To‘lov qilish uchun admin: ${ADMIN_CONTACT}`,
+      mainMenu
+    );
+  }
+
+  if (text === "🔒 Premium bo‘lim") {
+    if (!isPremiumUser(userId) && !isAdminUser(userId)) {
+      return ask(chatId, `🔒 Bu bo‘lim faqat Premium uchun.\nAdmin: ${ADMIN_CONTACT}`, mainMenu);
+    }
+    return ask(chatId, "🔒 Premium bo‘lim (demo): maxsus testlar, darslar ✅", mainMenu);
+  }
+
   if (text === "👤 Admin") {
-    if (!isAdmin(userId)) return ask(chatId, `👤 Admin: ${ADMIN_CONTACT}`, mainMenu);
+    if (!isAdminUser(userId)) return ask(chatId, `👤 Admin: ${ADMIN_CONTACT}`, mainMenu);
     return ask(chatId, "🔧 Admin panel:", adminMenu);
   }
 
@@ -443,12 +492,12 @@ bot.on("message", async (msg) => {
   }
 
   // -------- ADMIN BUTTONS --------
-  if (isAdmin(userId) && text === "📣 Broadcast") {
+  if (isAdminUser(userId) && text === "📣 Broadcast") {
     adminState[userId] = { mode: "broadcast" };
     return ask(chatId, "📣 Hamma userlarga yuboriladigan matnni yozing:", adminMenu);
   }
 
-  if (isAdmin(userId) && text === "👥 Statistika") {
+  if (isAdminUser(userId) && text === "👥 Statistika") {
     const usersCount = Object.keys(db.users).length;
     const premiumCount = Object.keys(db.premium).length;
     const adminCount = Object.keys(db.admins).length;
@@ -456,91 +505,72 @@ bot.on("message", async (msg) => {
     return ask(chatId, `👥 Userlar: ${usersCount}\n💎 Premium: ${premiumCount}\n👑 Admin: ${adminCount}\n🧠 Quiz: ${quizCount}`, adminMenu);
   }
 
-  if (isAdmin(userId) && text === "➕ Premium qo‘shish") {
+  if (isAdminUser(userId) && text === "➕ Premium qo‘shish") {
     adminState[userId] = { mode: "addPremium" };
     return ask(chatId, "➕ Premium beriladigan USER ID ni yuboring.\n(User /myid orqali oladi)", adminMenu);
   }
-  if (isAdmin(userId) && text === "➖ Premium olib tashlash") {
+
+  if (isAdminUser(userId) && text === "➖ Premium olib tashlash") {
     adminState[userId] = { mode: "removePremium" };
     return ask(chatId, "➖ Premium olib tashlanadigan USER ID ni yuboring:", adminMenu);
   }
 
-  if (isAdmin(userId) && text === "➕ Admin qo‘shish") {
+  if (isAdminUser(userId) && text === "➕ Admin qo‘shish") {
     adminState[userId] = { mode: "addAdmin" };
     return ask(chatId, "➕ Admin qilinadigan USER ID ni yuboring:", adminMenu);
   }
-  if (isAdmin(userId) && text === "➖ Admin olib tashlash") {
+
+  if (isAdminUser(userId) && text === "➖ Admin olib tashlash") {
     adminState[userId] = { mode: "removeAdmin" };
     return ask(chatId, "➖ Adminlikdan olinadigan USER ID ni yuboring:", adminMenu);
   }
 
-  if (isAdmin(userId) && text === "➕ FAQ qo‘shish") {
+  if (isAdminUser(userId) && text === "➕ FAQ qo‘shish") {
     adminState[userId] = { mode: "addFAQ", step: 1, temp: {} };
     return ask(chatId, "Yangi savolni yozing:", adminMenu);
   }
-  if (isAdmin(userId) && text === "➖ FAQ o‘chirish") {
+
+  if (isAdminUser(userId) && text === "➖ FAQ o‘chirish") {
     adminState[userId] = { mode: "delFAQ" };
     const list = Object.keys(db.faq).map((q, i) => `${i + 1}) ${q}`).join("\n");
     return ask(chatId, `O‘chirmoqchi bo‘lgan savolni aynan yozing:\n${list}`, adminMenu);
   }
 
-  if (isAdmin(userId) && text === "➕ Quiz qo‘shish") {
+  if (isAdminUser(userId) && text === "➕ Quiz qo‘shish") {
     adminState[userId] = { mode: "addQuiz", step: 1, temp: {} };
     return ask(chatId, "Yangi quiz savolini yozing:", adminMenu);
   }
-  if (isAdmin(userId) && text === "➖ Quiz o‘chirish") {
+
+  if (isAdminUser(userId) && text === "➖ Quiz o‘chirish") {
     adminState[userId] = { mode: "delQuiz" };
     const list = db.quiz.map((x, i) => `${i + 1}) ${x.q}`).join("\n") || "Hozircha quiz yo‘q";
     return ask(chatId, `O‘chirmoqchi bo‘lgan quiz raqamini yozing:\n${list}`, adminMenu);
   }
 
-  if (isAdmin(userId) && text === "📋 Premium ro‘yxat") {
+  if (isAdminUser(userId) && text === "📋 Premium ro‘yxat") {
     const list = Object.keys(db.premium);
     if (!list.length) return ask(chatId, "📋 Premium ro‘yxat bo‘sh.", adminMenu);
     return ask(chatId, "📋 Premium userlar:\n" + list.map((x) => "• " + x).join("\n"), adminMenu);
   }
 
-  if (isAdmin(userId) && text === "📋 Admin ro‘yxat") {
+  if (isAdminUser(userId) && text === "📋 Admin ro‘yxat") {
     const list = Object.keys(db.admins);
     if (!list.length) return ask(chatId, "📋 Admin ro‘yxat bo‘sh.", adminMenu);
     return ask(chatId, "📋 Adminlar:\n" + list.map((x) => "• " + x).join("\n"), adminMenu);
   }
 
-  if (isAdmin(userId) && text === "📋 FAQ ro‘yxat") {
+  if (isAdminUser(userId) && text === "📋 FAQ ro‘yxat") {
     const list = Object.keys(db.faq);
     if (!list.length) return ask(chatId, "📋 FAQ bo‘sh.", adminMenu);
     return ask(chatId, "📋 FAQ:\n" + list.map((q, i) => `${i + 1}) ${q}`).join("\n"), adminMenu);
   }
 
-  if (isAdmin(userId) && text === "📋 Quiz ro‘yxat") {
+  if (isAdminUser(userId) && text === "📋 Quiz ro‘yxat") {
     const list = db.quiz.map((x, i) => `${i + 1}) ${x.q}`).join("\n");
     return ask(chatId, "📋 Quiz:\n" + (list || "Hozircha quiz yo‘q"), adminMenu);
   }
-  if (text === "💎 Premium") {
 
-    if (isPremium(userId)) {
-      const expire = new Date(db.premium[String(userId)].expireAt)
-        .toLocaleDateString();
-  
-      return ask(chatId,
-        `💎 Siz Premium usersiz\n\n⏳ Tugash sanasi: ${expire}`,
-        mainMenu
-      );
-    }
-  
-    return ask(chatId,
-      `💎 Premium obuna\n\n` +
-      `Narx: ${PREMIUM_PRICE.toLocaleString()} so‘m / oy\n\n` +
-      `Premium imkoniyatlari:\n` +
-      `✅ Ko‘proq testlar\n` +
-      `✅ Premium bo‘lim\n` +
-      `✅ Maxsus kontent\n\n` +
-      `To‘lov qilish uchun admin: ${ADMIN_CONTACT}`,
-      mainMenu
-    );
-  }
   return ask(chatId, "Menuni ishlating 👇", mainMenu);
-  
 });
 
 // ================== START SERVER + SET WEBHOOK ==================
@@ -560,20 +590,25 @@ app.listen(PORT, async () => {
     console.log("❌ Webhook set error:", e);
   }
 });
+
+// Premium tugaganlarni har 1 soatda tekshiradi
 setInterval(() => {
   let changed = false;
 
   for (const userId in db.premium) {
-    if (Date.now() > db.premium[userId].expireAt) {
+    const p = db.premium[userId];
+    if (p?.expireAt && Date.now() > p.expireAt) {
       delete db.premium[userId];
       changed = true;
 
-      bot.sendMessage(userId,
-        "ℹ️ Premium obunangiz tugadi.\nYangilash uchun admin bilan bog‘laning."
-      ).catch(()=>{});
+      bot
+        .sendMessage(
+          userId,
+          "ℹ️ Premium obunangiz tugadi.\nYangilash uchun admin bilan bog‘laning."
+        )
+        .catch(() => {});
     }
   }
 
   if (changed) saveDB(db);
-
-}, 60 * 60 * 1000); // har 1 soatda tekshiradi
+}, 60 * 60 * 1000);
