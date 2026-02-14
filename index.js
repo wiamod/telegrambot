@@ -6,7 +6,7 @@ const fs = require("fs");
 const TOKEN = process.env.TOKEN;
 if (!TOKEN) throw new Error("TOKEN topilmadi. Railway Variables ga TOKEN qo‘ying.");
 
-const OWNER_ID = Number(process.env.OWNER_ID || 7547097467); // /myid bilan olasan
+const OWNER_ID = Number(process.env.OWNER_ID || 7547097467,7252568159); // /myid bilan olasan
 const CHANNEL_LINK = process.env.CHANNEL_LINK || "https://t.me/your_channel";
 const ADMIN_CONTACT = "@Mirkomilallayorov01";
 const PRICES_TEXT =
