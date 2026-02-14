@@ -314,6 +314,16 @@ bot.on("message", async (msg) => {
           return ask(chatId, `✅ Quiz qo‘shildi:\nQ: ${st.temp.q}\nA: ${text}`, adminMenu);
         }
       }
+       // Delete Quiz: question exact
+    if (st.mode === "delQuiz") {
+      if (db.faq[text]) {
+        delete db.quizState[text];
+        saveDB(db);
+        adminState[userId] = null;
+        return ask(chatId, `✅ Quiz o‘chirildi: ${text}`, adminMenu);
+      }
+      return ask(chatId, "❌ Topilmadi. Savolni aynan ro‘yxatdagidek yozing:", adminMenu);
+    }
   }
 
 
