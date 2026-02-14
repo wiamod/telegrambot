@@ -308,16 +308,16 @@ bot.on("message", async (msg) => {
           st.step = 2;
           return ask(chatId, "Endi javobini yozing:", adminMenu);
         } else {
-          db.quizState[st.temp.q] = text;
+          db.quiz[st.temp.q] = text;
           saveDB(db);
           adminState[userId] = null;
           return ask(chatId, `✅ Quiz qo‘shildi:\nQ: ${st.temp.q}\nA: ${text}`, adminMenu);
         }
       }
-       // Delete Quiz: question exact
+       // Delete FAQ: question exact
     if (st.mode === "delQuiz") {
       if (db.faq[text]) {
-        delete db.quizState[text];
+        delete db.quiz[text];
         saveDB(db);
         adminState[userId] = null;
         return ask(chatId, `✅ Quiz o‘chirildi: ${text}`, adminMenu);
