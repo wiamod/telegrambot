@@ -6,7 +6,7 @@ const fs = require("fs");
 const TOKEN = process.env.TOKEN;
 if (!TOKEN) throw new Error("TOKEN topilmadi. Railway Variables ga TOKEN qo‘ying.");
 
-const OWNER_ID = Number(process.env.OWNER_ID || 7547097467,7252568159); // /myid bilan olasan
+const OWNER_ID = Number(process.env.OWNER_ID ||  7547097467,7252568159); // /myid bilan olasan
 const CHANNEL_LINK = process.env.CHANNEL_LINK || "https://t.me/your_channel";
 const ADMIN_CONTACT = "@Mirkomilallayorov01";
 const PRICES_TEXT =
@@ -34,6 +34,7 @@ function loadDB() {
       premium: {},    // userId -> {addedAt}
       admins: {},     // userId -> true
       faq: {},        // question -> answer
+      quiz: []        // [{q, options:[...], a}]
     };
   }
 }
@@ -70,15 +71,14 @@ function isPremium(userId) {
 }
 
 // ================== SCHEDULE DATA (1 haftalik) ==================
-// ✅ Shu yerga sinflaringni qo‘shib ko‘paytirasan
 const SCHEDULES = {
-  "8-A": {
-    "Dushanba": ["Kelajak soati", "Ona tili","Algebra", "Ingliz tili", "Rus tili"],
-    "Seshanba": ["Geometriya","Kimyo", "Fizika", "Davlat huquq asoslari", "O'zbekiston tarixi"],
-    "Chorshanba": ["Adabiyot", "Jaxon tarixi", "Chizmachilik", "Ona tili","ingiliz tili","Texnalogiya"],
-    "Payshanba": ["Fizika", "Jismoniy tarbiya", "Ona tili ", "Bialogiya","Ingiliz tili"],
-    "Juma": ["Adabiyot", "Geografiya", "Algebra", "Bialogiya", "Informatika", "O'zbekiston tarixi"],
-    "Shanba": ["Algebra","Geografiya","Kimyo","Rus tili" , "Tarbiya" ,"Geometriya"],
+  "5-A": {
+    "Dushanba": ["Matematika", "Ona tili", "Ingliz tili", "Tarix"],
+    "Seshanba": ["Fizika", "Matematika", "Ingliz tili", "Musiqa"],
+    "Chorshanba": ["Biologiya", "Ona tili", "Informatika", "Jismoniy tarbiya"],
+    "Payshanba": ["Kimyo", "Matematika", "Geografiya", "Adabiyot"],
+    "Juma": ["Informatika", "Fizika", "Tarbiya soati", "Sport"],
+    "Shanba": ["Test kuni 🧠"],
   },
   "6-A": {
     "Dushanba": ["Matematika", "Ingliz tili", "Fizika", "Adabiyot"],
@@ -90,8 +90,7 @@ const SCHEDULES = {
   },
 };
 
-// ================== FAQ (savol-javob) ==================
-// db.faq bo‘sh bo‘lsa, boshlang‘ich to‘ldirib qo‘yamiz
+// ================== DEFAULT FAQ + QUIZ ==================
 if (!Object.keys(db.faq).length) {
   db.faq = {
     "Bot nima qiladi?": "Bu bot dars jadvali, test va savol-javoblar beradi.",
@@ -99,19 +98,18 @@ if (!Object.keys(db.faq).length) {
     "Premium nima?": "Premium bo‘limda maxsus kontent bo‘ladi (to‘lovni keyin qo‘shamiz).",
     "Admin kim?": `Admin: ${ADMIN_CONTACT}`,
   };
-  saveDB(db);
 }
 
-// ================== QUIZ (test) ==================
-const QUIZ = [
-  { q: "2 + 2 = ?", options: ["3", "4", "5"], a: "4" },
-  { q: "O‘zbekiston poytaxti?", options: ["Toshkent", "Samarqand", "Buxoro"], a: "Toshkent" },
-  { q: "Node.js nima?", options: ["Runtime", "Brauzer", "O‘yin"], a: "Runtime" },
-  { q: "Amir Temurning nechi mingta askari bolgan ?", options: ["200 000", "400 000", "250 000"], a: "400 000" },
-  { q: "Sirdaryo viloyatining paytaxti ?", options: ["Guliston", "qirq qiz", "Qarapchi"], a: "Guliston" },
-  { q: "Bolalarda nechta suyaklar mavjud?", options: ["265", "306", "288"], a: "306" },
-];
+if (!Array.isArray(db.quiz) || db.quiz.length === 0) {
+  db.quiz = [
+    { q: "2 + 2 = ?", options: ["3", "4", "5"], a: "4" },
+    { q: "O‘zbekiston poytaxti?", options: ["Toshkent", "Samarqand", "Buxoro"], a: "Toshkent" },
+    { q: "Node.js nima?", options: ["Runtime", "Brauzer", "O‘yin"], a: "Runtime" },
+  ];
+}
+saveDB(db);
 
+// ================== QUIZ STATE ==================
 const quizState = {}; // userId -> { index, score, active }
 
 // ================== MENUS ==================
@@ -137,29 +135,20 @@ const adminMenu = {
       ["➕ FAQ qo‘shish", "➖ FAQ o‘chirish"],
       ["➕ Quiz qo‘shish", "➖ Quiz o‘chirish"],
       ["📋 Premium ro‘yxat", "📋 Admin ro‘yxat"],
-      ["📋 FAQ ro‘yxat", "📋Quiz ro'yxat"],
+      ["📋 FAQ ro‘yxat", "📋 Quiz ro‘yxat"],
       ["⬅️ Orqaga (Menu)"],
     ],
     resize_keyboard: true,
   },
 };
 
-// sinf tanlash menu (schedule)
 function classesKeyboard() {
   const classes = Object.keys(SCHEDULES);
   const rows = [];
-  for (let i = 0; i < classes.length; i += 2) {
-    rows.push(classes.slice(i, i + 2));
-  }
+  for (let i = 0; i < classes.length; i += 2) rows.push(classes.slice(i, i + 2));
   rows.push(["⬅️ Orqaga (Menu)"]);
-  return {
-    reply_markup: { keyboard: rows, resize_keyboard: true },
-  };
+  return { reply_markup: { keyboard: rows, resize_keyboard: true } };
 }
-
-// ================== ADMIN STATE (matn kiritish bosqichlari) ==================
-const adminState = {}; 
-// adminState[adminId] = { mode: "broadcast"|"addPremium"|"removePremium"|"addAdmin"|"removeAdmin"|"addFAQ"|"delFAQ", step, temp }
 
 function ask(chatId, text, menu) {
   return bot.sendMessage(chatId, text, menu || {});
@@ -208,6 +197,20 @@ bot.onText(/\/resetmenu/, (msg) => {
   bot.sendMessage(msg.chat.id, "Menu reset ✅", { reply_markup: { remove_keyboard: true } });
 });
 
+// ================== ADMIN STATE ==================
+const adminState = {};
+// modes:
+// broadcast
+// addPremium/removePremium/addAdmin/removeAdmin (ID)
+// addFAQ (step1 q, step2 a)
+// delFAQ (q exact)
+// addQuiz (step1 q, step2 options, step3 answer)
+// delQuiz (index)
+
+function takeId(text) {
+  return text.replace(/\D/g, "");
+}
+
 // ================== MAIN HANDLER ==================
 bot.on("message", async (msg) => {
   ensureUser(msg);
@@ -217,7 +220,6 @@ bot.on("message", async (msg) => {
   const userId = msg.from.id;
   const text = (msg.text || "").trim();
 
-  // komandani qayta tutmaymiz
   if (text.startsWith("/")) return;
 
   // -------- ADMIN MODES --------
@@ -238,10 +240,9 @@ bot.on("message", async (msg) => {
       return ask(chatId, `✅ Broadcast yuborildi: ${sent}/${userIds.length}`, adminMenu);
     }
 
-    // Add Premium / Remove Premium / Add Admin / Remove Admin (ID kiritiladi)
-    const takeId = () => text.replace(/\D/g, "");
-    if (["addPremium","removePremium","addAdmin","removeAdmin"].includes(st.mode)) {
-      const target = takeId();
+    // ID based
+    if (["addPremium", "removePremium", "addAdmin", "removeAdmin"].includes(st.mode)) {
+      const target = takeId(text);
       if (!target) return ask(chatId, "❌ ID topilmadi. Masalan: 123456789", adminMenu);
 
       if (st.mode === "addPremium") {
@@ -291,7 +292,7 @@ bot.on("message", async (msg) => {
       }
     }
 
-    // Delete FAQ: question exact
+    // Delete FAQ
     if (st.mode === "delFAQ") {
       if (db.faq[text]) {
         delete db.faq[text];
@@ -301,59 +302,77 @@ bot.on("message", async (msg) => {
       }
       return ask(chatId, "❌ Topilmadi. Savolni aynan ro‘yxatdagidek yozing:", adminMenu);
     }
-      // Add Quiz: step1 question, step2 answer
-      if (st.mode === "addQuiz") {
-        if (st.step === 1) {
-          st.temp = { q: text };
-          st.step = 2;
-          return ask(chatId, "Endi javobini yozing:", adminMenu);
-        } else {
-          db.quiz[st.temp.q] = text;
-          saveDB(db);
-          adminState[userId] = null;
-          return ask(chatId, `✅ Quiz qo‘shildi:\nQ: ${st.temp.q}\nA: ${text}`, adminMenu);
-        }
+
+    // Add Quiz
+    if (st.mode === "addQuiz") {
+      if (st.step === 1) {
+        st.temp = { q: text };
+        st.step = 2;
+        return ask(chatId, "Variantlarni vergul bilan yozing.\nMasalan: A,B,C", adminMenu);
       }
-       // Delete Quiz: question exact
-    if (st.mode === "delQuiz") {
-      if (db.faq[text]) {
-        delete db.quiz[text];
+      if (st.step === 2) {
+        const options = text.split(",").map(s => s.trim()).filter(Boolean);
+        if (options.length < 2) return ask(chatId, "❌ Kamida 2 ta variant kerak. Masalan: 3,4,5", adminMenu);
+        st.temp.options = options;
+        st.step = 3;
+        return ask(chatId, `To‘g‘ri javobni aynan variantdan yozing.\nVariantlar:\n${options.join("\n")}`, adminMenu);
+      }
+      if (st.step === 3) {
+        const ans = text.trim();
+        if (!st.temp.options.includes(ans)) {
+          return ask(chatId, "❌ Javob variantlar ichida bo‘lishi kerak. Qayta yozing:", adminMenu);
+        }
+        db.quiz.push({ q: st.temp.q, options: st.temp.options, a: ans });
         saveDB(db);
         adminState[userId] = null;
-        return ask(chatId, `✅ Quiz o‘chirildi: ${text}`, adminMenu);
+        return ask(chatId, `✅ Quiz qo‘shildi!\nSavol: ${st.temp.q}`, adminMenu);
       }
-      return ask(chatId, "❌ Topilmadi. Savolni aynan ro‘yxatdagidek yozing:", adminMenu);
+    }
+
+    // Delete Quiz by number
+    if (st.mode === "delQuiz") {
+      const n = Number(text);
+      if (!Number.isFinite(n) || n < 1 || n > db.quiz.length) {
+        return ask(chatId, `❌ Raqam noto‘g‘ri. 1 dan ${db.quiz.length} gacha yozing:`, adminMenu);
+      }
+      const removed = db.quiz.splice(n - 1, 1)[0];
+      saveDB(db);
+      adminState[userId] = null;
+      return ask(chatId, `✅ Quiz o‘chirildi: ${removed.q}`, adminMenu);
     }
   }
 
-
-  // -------- QUIZ MODE (javob kutish) --------
+  // -------- QUIZ PLAY MODE --------
   if (quizState[userId]?.active) {
     const st = quizState[userId];
-    const cur = QUIZ[st.index];
+    const cur = db.quiz[st.index];
+    if (!cur) {
+      delete quizState[userId];
+      return ask(chatId, "❌ Test topilmadi. Admin quiz qo‘shishi kerak.", mainMenu);
+    }
+
     if (text === cur.a) st.score++;
 
     st.index++;
-    if (st.index >= QUIZ.length) {
+    if (st.index >= db.quiz.length) {
       const score = st.score;
       delete quizState[userId];
-      return ask(chatId, `✅ Test tugadi!\nBall: ${score}/${QUIZ.length}`, mainMenu);
+      return ask(chatId, `✅ Test tugadi!\nBall: ${score}/${db.quiz.length}`, mainMenu);
     }
 
-    const next = QUIZ[st.index];
-    return ask(chatId, `🧠 Savol ${st.index + 1}/${QUIZ.length}:\n${next.q}\n\n${next.options.join("\n")}`, mainMenu);
+    const next = db.quiz[st.index];
+    return ask(
+      chatId,
+      `🧠 Savol ${st.index + 1}/${db.quiz.length}:\n${next.q}\n\n${next.options.join("\n")}`,
+      mainMenu
+    );
   }
 
-  // -------- MAIN MENU ACTIONS --------
-  if (text === "⬅️ Orqaga (Menu)") {
-    return ask(chatId, "📌 Menu:", mainMenu);
-  }
+  // -------- MAIN MENU --------
+  if (text === "⬅️ Orqaga (Menu)") return ask(chatId, "📌 Menu:", mainMenu);
 
-  if (text === "📅 Dars jadvali") {
-    return ask(chatId, "Qaysi sinf? Tanlang 👇", classesKeyboard());
-  }
+  if (text === "📅 Dars jadvali") return ask(chatId, "Qaysi sinf? Tanlang 👇", classesKeyboard());
 
-  // sinf tanlansa haftalik jadval chiqarish
   if (SCHEDULES[text]) {
     const week = SCHEDULES[text];
     let out = `📅 ${text} — 1 haftalik dars jadvali\n\n`;
@@ -364,9 +383,12 @@ bot.on("message", async (msg) => {
   }
 
   if (text === "🧠 Test") {
+    if (!Array.isArray(db.quiz) || db.quiz.length === 0) {
+      return ask(chatId, "❌ Hozircha test yo‘q. Admin quiz qo‘shishi kerak.", mainMenu);
+    }
     quizState[userId] = { index: 0, score: 0, active: true };
-    const q = QUIZ[0];
-    return ask(chatId, `🧠 Test boshlandi!\nSavol 1/${QUIZ.length}:\n${q.q}\n\n${q.options.join("\n")}`, mainMenu);
+    const q = db.quiz[0];
+    return ask(chatId, `🧠 Test boshlandi!\nSavol 1/${db.quiz.length}:\n${q.q}\n\n${q.options.join("\n")}`, mainMenu);
   }
 
   if (text === "❓ Savol-javob") {
@@ -375,50 +397,36 @@ bot.on("message", async (msg) => {
     return ask(chatId, `❓ Savollar ro‘yxati:\n${textList}\n\nSavolni aynan yozsangiz javob beraman ✅`, mainMenu);
   }
 
-  if (db.faq[text]) {
-    return ask(chatId, `✅ ${db.faq[text]}`, mainMenu);
-  }
+  if (db.faq[text]) return ask(chatId, `✅ ${db.faq[text]}`, mainMenu);
 
-  if (text === "📚 Kurslar") {
-    return ask(
-      chatId,
-      "📚 Kurslar (demo):\n1) Telegram bot (boshlang‘ich)\n2) Jadval bot\n3) Quiz bot\n\nKeyin to‘liq qilamiz ✅",
-      mainMenu
-    );
-  }
+  if (text === "📚 Kurslar") return ask(chatId, "📚 Kurslar (demo):\n1) Telegram bot\n2) Jadval bot\n3) Quiz bot", mainMenu);
 
-  if (text === "💎 Premium") {
-    return ask(
-      chatId,
-      "💎 Premium (info)\nPremium bo‘lsa maxsus testlar va darslar bo‘ladi.\nHozircha admin qo‘shib beradi ✅",
-      mainMenu
-    );
-  }
+  if (text === "💎 Premium") return ask(chatId, "💎 Premium (info): keyin kengaytiramiz ✅", mainMenu);
 
   if (text === "🔒 Premium bo‘lim") {
-    if (!isPremium(userId) && !isAdmin(userId)) {
-      return ask(chatId, `🔒 Bu bo‘lim faqat Premium uchun.\nAdmin: ${ADMIN_CONTACT}`, mainMenu);
-    }
-    return ask(
-      chatId,
-      "🔒 Premium bo‘lim (demo)\n✅ Maxsus testlar\n✅ Yopiq darslar\n\nKeyin kengaytiramiz ✅",
-      mainMenu
-    );
+    if (!isPremium(userId) && !isAdmin(userId)) return ask(chatId, `🔒 Bu bo‘lim faqat Premium uchun.\nAdmin: ${ADMIN_CONTACT}`, mainMenu);
+    return ask(chatId, "🔒 Premium bo‘lim (demo): maxsus testlar, darslar ✅", mainMenu);
   }
 
-  if (text === "💰 Narxlar") {
-    return ask(chatId, PRICES_TEXT, mainMenu);
-  }
+  if (text === "💰 Narxlar") return ask(chatId, PRICES_TEXT, mainMenu);
 
-  if (text === "📢 Kanal") {
-    return ask(chatId, `📢 Kanal: ${CHANNEL_LINK}`, mainMenu);
-  }
+  if (text === "📢 Kanal") return ask(chatId, `📢 Kanal: ${CHANNEL_LINK}`, mainMenu);
 
   if (text === "👤 Admin") {
     if (!isAdmin(userId)) return ask(chatId, `👤 Admin: ${ADMIN_CONTACT}`, mainMenu);
     return ask(chatId, "🔧 Admin panel:", adminMenu);
   }
 
+  if (text === "ℹ️ Yordam") {
+    return ask(
+      chatId,
+      "ℹ️ Yordam:\n/start — boshlash\n/menu — menu\n/myid — ID olish\n/resetmenu — menu reset\n\n" +
+        "📅 Jadval: sinfni tanlaysan → haftalik jadval\n🧠 Test: variantdan javob berasan",
+      mainMenu
+    );
+  }
+
+  // -------- ADMIN BUTTONS --------
   if (isAdmin(userId) && text === "📣 Broadcast") {
     adminState[userId] = { mode: "broadcast" };
     return ask(chatId, "📣 Hamma userlarga yuboriladigan matnni yozing:", adminMenu);
@@ -428,14 +436,14 @@ bot.on("message", async (msg) => {
     const usersCount = Object.keys(db.users).length;
     const premiumCount = Object.keys(db.premium).length;
     const adminCount = Object.keys(db.admins).length;
-    return ask(chatId, `👥 Userlar: ${usersCount}\n💎 Premium: ${premiumCount}\n👑 Admin: ${adminCount}`, adminMenu);
+    const quizCount = Array.isArray(db.quiz) ? db.quiz.length : 0;
+    return ask(chatId, `👥 Userlar: ${usersCount}\n💎 Premium: ${premiumCount}\n👑 Admin: ${adminCount}\n🧠 Quiz: ${quizCount}`, adminMenu);
   }
 
   if (isAdmin(userId) && text === "➕ Premium qo‘shish") {
     adminState[userId] = { mode: "addPremium" };
     return ask(chatId, "➕ Premium beriladigan USER ID ni yuboring.\n(User /myid orqali oladi)", adminMenu);
   }
-
   if (isAdmin(userId) && text === "➖ Premium olib tashlash") {
     adminState[userId] = { mode: "removePremium" };
     return ask(chatId, "➖ Premium olib tashlanadigan USER ID ni yuboring:", adminMenu);
@@ -445,7 +453,6 @@ bot.on("message", async (msg) => {
     adminState[userId] = { mode: "addAdmin" };
     return ask(chatId, "➕ Admin qilinadigan USER ID ni yuboring:", adminMenu);
   }
-
   if (isAdmin(userId) && text === "➖ Admin olib tashlash") {
     adminState[userId] = { mode: "removeAdmin" };
     return ask(chatId, "➖ Adminlikdan olinadigan USER ID ni yuboring:", adminMenu);
@@ -453,13 +460,22 @@ bot.on("message", async (msg) => {
 
   if (isAdmin(userId) && text === "➕ FAQ qo‘shish") {
     adminState[userId] = { mode: "addFAQ", step: 1, temp: {} };
-    return ask(chatId, "Yangi savolni yozing (masalan: Bot 24/7 ishlaydimi?):", adminMenu);
+    return ask(chatId, "Yangi savolni yozing:", adminMenu);
   }
-
   if (isAdmin(userId) && text === "➖ FAQ o‘chirish") {
     adminState[userId] = { mode: "delFAQ" };
     const list = Object.keys(db.faq).map((q, i) => `${i + 1}) ${q}`).join("\n");
     return ask(chatId, `O‘chirmoqchi bo‘lgan savolni aynan yozing:\n${list}`, adminMenu);
+  }
+
+  if (isAdmin(userId) && text === "➕ Quiz qo‘shish") {
+    adminState[userId] = { mode: "addQuiz", step: 1, temp: {} };
+    return ask(chatId, "Yangi quiz savolini yozing:", adminMenu);
+  }
+  if (isAdmin(userId) && text === "➖ Quiz o‘chirish") {
+    adminState[userId] = { mode: "delQuiz" };
+    const list = db.quiz.map((x, i) => `${i + 1}) ${x.q}`).join("\n") || "Hozircha quiz yo‘q";
+    return ask(chatId, `O‘chirmoqchi bo‘lgan quiz raqamini yozing:\n${list}`, adminMenu);
   }
 
   if (isAdmin(userId) && text === "📋 Premium ro‘yxat") {
@@ -480,20 +496,11 @@ bot.on("message", async (msg) => {
     return ask(chatId, "📋 FAQ:\n" + list.map((q, i) => `${i + 1}) ${q}`).join("\n"), adminMenu);
   }
 
-  if (text === "ℹ️ Yordam") {
-    return ask(
-      chatId,
-      "ℹ️ Yordam:\n" +
-        "/start — boshlash\n" +
-        "/menu — menu\n" +
-        "/myid — ID olish\n" +
-        "/resetmenu — menu reset\n\n" +
-        "📅 Jadval: sinfni tanlaysan → haftalik jadval chiqadi\n🧠 Test: savollarga variantdan javob berasan",
-      mainMenu
-    );
+  if (isAdmin(userId) && text === "📋 Quiz ro‘yxat") {
+    const list = db.quiz.map((x, i) => `${i + 1}) ${x.q}`).join("\n");
+    return ask(chatId, "📋 Quiz:\n" + (list || "Hozircha quiz yo‘q"), adminMenu);
   }
 
-  // Default
   return ask(chatId, "Menuni ishlating 👇", mainMenu);
 });
 
