@@ -314,7 +314,7 @@ bot.on("message", async (msg) => {
           return ask(chatId, `✅ Quiz qo‘shildi:\nQ: ${st.temp.q}\nA: ${text}`, adminMenu);
         }
       }
-       // Delete FAQ: question exact
+       // Delete Quiz: question exact
     if (st.mode === "delQuiz") {
       if (db.faq[text]) {
         delete db.quiz[text];
