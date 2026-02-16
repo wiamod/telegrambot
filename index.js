@@ -15,7 +15,7 @@ const fs = require("fs");
 const TOKEN = process.env.TOKEN;
 if (!TOKEN) throw new Error("TOKEN topilmadi. Railway Variables ga TOKEN qo‘ying.");
 
-const ADMINS_ENV = (process.env.ADMINS || 7547097467,6393574485)
+const ADMINS_ENV = (process.env.ADMINS || "7547097467,6393574485")
   .split(",")
   .map((x) => Number(x.trim()))
   .filter((n) => Number.isFinite(n));
