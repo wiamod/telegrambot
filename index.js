@@ -21,6 +21,10 @@ const ADMIN_CONTACT = process.env.ADMIN_CONTACT || "@Startapadmin001";
 const PREMIUM_PRICE = Number(process.env.PREMIUM_PRICE || 20000);
 const PREMIUM_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 kun
 
+// ================== REFERRAL SETTINGS ==================
+const REF_TARGET = Number(process.env.REF_TARGET || 10); // 10 ta do‘st
+const REF_REWARD_DAYS = Number(process.env.REF_REWARD_DAYS || 30); // 30 kun premium
+
 // Railway domain
 const PUBLIC_DOMAIN =
   process.env.RAILWAY_PUBLIC_DOMAIN ||
@@ -50,6 +54,10 @@ function loadDB() {
     raw.faq = raw.faq || {};
     raw.premiumContent = raw.premiumContent || { books: [], channels: [], videos: [] };
 
+    // ✅ REFERRAL DB
+    raw.referrals = raw.referrals || {};
+    // referrals[userId] = { invited: [userId,userId], invitedBy: "123" | null, rewardedAt: 0 }
+
     raw.quiz.math = Array.isArray(raw.quiz.math) ? raw.quiz.math : [];
     raw.quiz.en = Array.isArray(raw.quiz.en) ? raw.quiz.en : [];
     raw.quiz.ru = Array.isArray(raw.quiz.ru) ? raw.quiz.ru : [];
@@ -68,6 +76,7 @@ function loadDB() {
       faq: {},
       quiz: { math: [], en: [], ru: [], bio: [] },
       premiumContent: { books: [], channels: [], videos: [] },
+      referrals: {},
     };
   }
 }
@@ -99,6 +108,14 @@ function ensureUser(msg) {
   }
 }
 
+function ensureReferral(userId) {
+  const id = String(userId);
+  if (!db.referrals[id]) {
+    db.referrals[id] = { invited: [], invitedBy: null, rewardedAt: 0 };
+    saveDB(db);
+  }
+}
+
 function isAdminUser(userId) {
   if (ADMINS.includes(Number(userId))) return true;
   return !!db.admins[String(userId)];
@@ -114,6 +131,51 @@ function isPremiumUser(userId) {
     return false;
   }
   return true;
+}
+
+function givePremium(userId, days = REF_REWARD_DAYS) {
+  const duration = days * 24 * 60 * 60 * 1000;
+  db.premium[String(userId)] = { addedAt: Date.now(), expireAt: Date.now() + duration };
+  saveDB(db);
+}
+
+// Referral hisoblash (yangi user start ref bilan kirdi)
+async function handleReferralJoin(newUserId, refId) {
+  const newbie = String(newUserId);
+  const inviter = String(refId);
+
+  ensureReferral(newbie);
+  ensureReferral(inviter);
+
+  // o‘zini-o‘zi taklif qilmasin
+  if (newbie === inviter) return;
+
+  // newbie oldin taklif bilan kirgan bo‘lsa qayta yozilmasin
+  if (db.referrals[newbie].invitedBy) return;
+
+  // inviterga qayta qo‘shilmasin
+  if (!db.referrals[inviter].invited.includes(newbie)) {
+    db.referrals[inviter].invited.push(newbie);
+  }
+
+  db.referrals[newbie].invitedBy = inviter;
+  saveDB(db);
+
+  const count = db.referrals[inviter].invited.length;
+
+  // inviterga xabar
+  bot.sendMessage(inviter, `🎉 Yangi do‘st qo‘shildi!\n👥 Takliflar: ${count}/${REF_TARGET}`)
+    .catch(() => {});
+
+  // 10 ta bo‘lsa premium sovg‘a
+  if (count >= REF_TARGET && !isPremiumUser(inviter) && !db.referrals[inviter].rewardedAt) {
+    givePremium(inviter, REF_REWARD_DAYS);
+    db.referrals[inviter].rewardedAt = Date.now();
+    saveDB(db);
+
+    bot.sendMessage(inviter, `🎁 Tabriklaymiz!\nSiz ${REF_TARGET} ta do‘st taklif qildingiz va Premium sovg‘a oldingiz! 💎\n⏳ ${REF_REWARD_DAYS} kun`)
+      .catch(() => {});
+  }
 }
 
 // ================== SCHEDULE DATA (1 haftalik) ==================
@@ -177,15 +239,9 @@ function ensureDefaultPremiumContent() {
   const hasAny = pc.books.length || pc.channels.length || pc.videos.length;
   if (hasAny) return;
 
-  pc.books = [
-    { title: "📘 Matematika darslik (namuna)", url: "https://example.com/math.pdf" },
-  ];
-  pc.channels = [
-    { title: "📢 Premium kanal (namuna)", url: "https://t.me/your_premium_channel" },
-  ];
-  pc.videos = [
-    { title: "🎥 Video dars (namuna)", url: "https://youtube.com/" },
-  ];
+  pc.books = [{ title: "📘 Matematika darslik (namuna)", url: "https://example.com/math.pdf" }];
+  pc.channels = [{ title: "📢 Premium kanal (namuna)", url: "https://t.me/your_premium_channel" }];
+  pc.videos = [{ title: "🎥 Video dars (namuna)", url: "https://youtube.com/" }];
 }
 ensureDefaultPremiumContent();
 
@@ -202,26 +258,21 @@ function getMainMenu(userId) {
     ["📅 Dars jadvali", "🧠 Test"],
     ["❓ Savol-javob", "📚 Kurslar"],
     ["💎 Premium", "💰 Narxlar"],
+    ["👥 Do‘st taklif qilish"],
     ["📢 Kanal", "👤 Admin"],
     ["ℹ️ Yordam"],
   ];
 
-  if (premiumVisible) {
-    rows.splice(3, 0, ["🔒 Premium bo‘lim"]);
-  }
+  if (premiumVisible) rows.splice(4, 0, ["🔒 Premium bo‘lim"]);
 
-  return {
-    reply_markup: {
-      keyboard: rows,
-      resize_keyboard: true,
-    },
-  };
+  return { reply_markup: { keyboard: rows, resize_keyboard: true } };
 }
 
 const adminMenu = {
   reply_markup: {
     keyboard: [
       ["📣 Broadcast", "👥 Statistika"],
+      ["📈 Referal statistika", "🔄 Referal reset"], // ✅ QO‘SHILDI
       ["➕ Premium qo‘shish", "➖ Premium olib tashlash"],
       ["➕ Admin qo‘shish", "➖ Admin olib tashlash"],
       ["➕ FAQ qo‘shish", "➖ FAQ o‘chirish"],
@@ -320,6 +371,7 @@ const adminState = {};
 // delQuizCategory -> delQuiz
 // addPremiumContentCategory -> addPremiumContent (title,url)
 // delPremiumContentCategory -> delPremiumContent (index)
+// ✅ resetReferral (ID)
 
 function takeId(text) {
   return String(text || "").replace(/\D/g, "");
@@ -346,9 +398,16 @@ function categoryNameByKey(key) {
 }
 
 // ================== COMMANDS ==================
-bot.onText(/\/start/, (msg) => {
+bot.onText(/\/start(?:\s+(\d+))?/, async (msg, match) => {
   ensureUser(msg);
   ensureOwnerAdmin();
+
+  const newUserId = msg.from.id;
+  ensureReferral(newUserId);
+
+  const refId = match && match[1] ? match[1] : null;
+  if (refId) await handleReferralJoin(newUserId, refId);
+
   ask(msg.chat.id, "Salom, Mirkomil StartApp Bot! 👋\nMenu orqali tanlang:", getMainMenu(msg.from.id));
 });
 
@@ -373,6 +432,31 @@ bot.on("message", async (msg) => {
 
   if (text.startsWith("/")) return;
 
+  // ✅ REF MENU BUTTON
+  if (text === "👥 Do‘st taklif qilish") {
+    ensureReferral(userId);
+    const count = db.referrals[String(userId)]?.invited?.length || 0;
+
+    let botUsername = "";
+    try {
+      const me = await bot.getMe();
+      botUsername = me.username;
+    } catch {}
+
+    const link = botUsername
+      ? `https://t.me/${botUsername}?start=${userId}`
+      : "Bot username topilmadi. Keyinroq qayta urinib ko‘ring.";
+
+    return ask(
+      chatId,
+      `👥 Do‘st taklif qiling va Premium oling!\n\n` +
+        `🔗 Sizning referal link:\n${link}\n\n` +
+        `📌 Takliflar: ${count}/${REF_TARGET}\n` +
+        `🎁 ${REF_TARGET} ta do‘st bo‘lsa → Premium (${REF_REWARD_DAYS} kun) sovg‘a!`,
+      getMainMenu(userId)
+    );
+  }
+
   // ===== ADMIN MODES =====
   if (isAdminUser(userId) && adminState[userId]?.mode) {
     const st = adminState[userId];
@@ -385,6 +469,25 @@ bot.on("message", async (msg) => {
         try { await bot.sendMessage(uid, `📣 E'lon:\n${text}`); sent++; } catch {}
       }
       return ask(chatId, `✅ Broadcast yuborildi: ${sent}/${userIds.length}`, adminMenu);
+    }
+
+    // ✅ REFERAL RESET MODE (ID)
+    if (st.mode === "resetReferral") {
+      const target = takeId(text);
+      if (!target) return ask(chatId, "❌ ID topilmadi. Masalan: 123456789", adminMenu);
+
+      ensureReferral(target);
+      // targetni taklif qilganlar ro‘yxatidan ham o‘chirib tashlaymiz
+      const inviter = db.referrals[target]?.invitedBy;
+      if (inviter && db.referrals[String(inviter)]?.invited) {
+        db.referrals[String(inviter)].invited = db.referrals[String(inviter)].invited.filter((x) => String(x) !== String(target));
+      }
+
+      db.referrals[target] = { invited: [], invitedBy: null, rewardedAt: 0 };
+      saveDB(db);
+
+      adminState[userId] = null;
+      return ask(chatId, `✅ Referal reset qilindi: ${target}`, adminMenu);
     }
 
     if (["addPremium", "removePremium", "addAdmin", "removeAdmin"].includes(st.mode)) {
@@ -658,6 +761,7 @@ bot.on("message", async (msg) => {
       "ℹ️ Yordam:\n/start — boshlash\n/menu — menu\n/myid — ID olish\n\n" +
       "📅 Jadval: sinfni tanlaysan → haftalik jadval\n" +
       "🧠 Test: bo‘lim tanlaysan → variantdan javob berasan\n" +
+      `👥 Do‘st taklif: ${REF_TARGET} ta bo‘lsa premium sovg‘a\n` +
       "💎 Premium: premium bo‘limni ochadi (faqat premium/admin)\n",
       getMainMenu(userId)
     );
@@ -673,14 +777,62 @@ bot.on("message", async (msg) => {
     const usersCount = Object.keys(db.users).length;
     const premiumCount = Object.keys(db.premium).length;
     const adminCount = Object.keys(db.admins).length;
+
     const quizCount =
       quizArrayByKey("math").length +
       quizArrayByKey("en").length +
       quizArrayByKey("ru").length +
       quizArrayByKey("bio").length;
 
-    return ask(chatId, `👥 Userlar: ${usersCount}\n💎 Premium: ${premiumCount}\n👑 Admin: ${adminCount}\n🧠 Quiz (jami): ${quizCount}`, adminMenu);
+    return ask(
+      chatId,
+      `👥 Userlar: ${usersCount}\n💎 Premium: ${premiumCount}\n👑 Admin: ${adminCount}\n🧠 Quiz (jami): ${quizCount}`,
+      adminMenu
+    );
   }
+
+  // ✅ REFERAL STATISTIKA (ADMIN)
+  if (isAdminUser(userId) && text === "📈 Referal statistika") {
+    const all = db.referrals || {};
+    const ids = Object.keys(all);
+
+    let totalInvites = 0;
+    let rewarded = 0;
+
+    const top = ids
+      .map((id) => ({
+        id,
+        count: (all[id]?.invited?.length || 0),
+        rewarded: !!all[id]?.rewardedAt,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    totalInvites = top.reduce((s, x) => s + x.count, 0);
+    rewarded = top.filter((x) => x.rewarded).length;
+
+    const top10 = top.slice(0, 10)
+      .map((x, i) => `${i + 1}) ${x.id} — ${x.count} ta ${x.rewarded ? "🎁" : ""}`)
+      .join("\n") || "Hozircha yo‘q";
+
+    return ask(
+      chatId,
+      `📈 Referal statistika\n\n` +
+        `👤 Referal ishlatgan userlar: ${ids.length}\n` +
+        `👥 Umumiy takliflar: ${totalInvites}\n` +
+        `🎁 Mukofot olganlar: ${rewarded}\n\n` +
+        `🏆 TOP-10:\n${top10}`,
+      adminMenu
+    );
+  }
+
+  // ✅ REFERAL RESET (ADMIN)
+  if (isAdminUser(userId) && text === "🔄 Referal reset") {
+    adminState[userId] = { mode: "resetReferral" };
+    return ask(chatId, "🔄 Qaysi userning referalini reset qilamiz?\nUSER ID yuboring:", adminMenu);
+  }
+
+  // qolgan admin tugmalaring (premium/admin/faq/quiz/premium content) — sening kodingda bor,
+  // bu yerda hammasini ushlab turish uchun pastdagi umumiy javobga tushadi.
 
   if (isAdminUser(userId) && text === "➕ Premium qo‘shish") {
     adminState[userId] = { mode: "addPremium" };
