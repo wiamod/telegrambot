@@ -15,15 +15,15 @@ const fs = require("fs");
 const TOKEN = process.env.TOKEN;
 if (!TOKEN) throw new Error("TOKEN topilmadi. Railway Variables ga TOKEN qo‘ying.");
 
-const ADMINS_ENV = (process.env.ADMINS || "7547097467")
+const ADMINS_ENV = (process.env.ADMINS || 7547097467,6393574485)
   .split(",")
   .map((x) => Number(x.trim()))
   .filter((n) => Number.isFinite(n));
 
 const OWNER_ID = Number(process.env.OWNER_ID || ADMINS_ENV[0] || 7547097467);
 
-const CHANNEL_LINK = process.env.CHANNEL_LINK || "https://t.me/your_channel";
-const ADMIN_CONTACT = process.env.ADMIN_CONTACT || "@Mirkomilallayorov01";
+const CHANNEL_LINK = process.env.CHANNEL_LINK || "@m_startapp_bot";
+const ADMIN_CONTACT = process.env.ADMIN_CONTACT || "@Startapadmin001";
 
 const PREMIUM_PRICE = Number(process.env.PREMIUM_PRICE || 20000); // so'm
 const PREMIUM_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 kun
